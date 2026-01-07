@@ -1,7 +1,6 @@
 {
   "typeCheckingMode": "standard",
   "pythonVersion": "3.13",
-  "venvPath": ".venv",
   "venv": ".venv",
   "reportMissingTypeStubs": false,
   "reportIncompatibleVariableOverride": true,

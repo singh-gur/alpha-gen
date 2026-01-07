@@ -1,0 +1,122 @@
+"""Analyze command for quick stock analysis."""
+
+from __future__ import annotations
+
+import asyncio
+from typing import Any
+
+import structlog
+import typer
+from rich import print as rprint
+from rich.panel import Panel
+from rich.table import Table
+
+from ...agents import analyze_news, research_company
+from ..helpers import output_result
+
+logger = structlog.get_logger(__name__)
+
+analyze_app = typer.Typer(
+    name="analyze",
+    help="Quick analysis of a stock ticker",
+    no_args_is_help=True,
+)
+
+
+@analyze_app.command("analyze")
+def analyze_command(
+    ticker: str = typer.Argument(
+        ...,
+        help="Stock ticker symbol to analyze",
+    ),
+    news: bool = typer.Option(
+        False,
+        "--news",
+        "-n",
+        help="Include news analysis",
+    ),
+    output: str = typer.Option(
+        "text",
+        "--output",
+        "-o",
+        help="Output format (text, json, markdown)",
+    ),
+) -> None:
+    """Quick analysis of a stock ticker."""
+    ticker = ticker.upper()
+    rprint(f"[bold]Quick analysis for {ticker}...[/bold]")
+
+    async def run_analysis() -> dict[str, Any]:
+        result = await research_company(ticker)
+
+        if news:
+            news_result = await analyze_news()
+            result["news_analysis"] = news_result.get("analysis")
+
+        return result
+
+    try:
+        result = asyncio.run(run_analysis())
+
+        if result.get("status") == "success":
+            duration = result.get("duration_ms", 0)
+            analysis = result.get("analysis", "")
+
+            if output == "markdown":
+                # Full markdown output
+                content = f"## Quick Analysis\n\n{analysis}"
+                if news and result.get("news_analysis"):
+                    content += f"\n\n## News Analysis\n\n{result['news_analysis']}"
+
+                output_result(
+                    output_format=output,
+                    title=f"Quick Analysis: {ticker}",
+                    content=content,
+                    metadata={
+                        "ticker": ticker,
+                        "duration_ms": f"{duration:.0f}",
+                    },
+                )
+            else:
+                # Text/Rich output
+                table = Table(title=f"Quick Analysis: {ticker}")
+                table.add_column("Metric", style="cyan")
+                table.add_column("Value", style="magenta")
+
+                table.add_row("Ticker", ticker)
+                table.add_row("Analysis Status", "Complete")
+                table.add_row("Duration", f"{duration:.0f}ms")
+
+                rprint(table)
+                rprint("")
+
+                if analysis:
+                    abbreviated = (
+                        analysis[:2000] + "..." if len(analysis) > 2000 else analysis
+                    )
+                    rprint(
+                        Panel(
+                            abbreviated,
+                            title=f"Analysis Preview: {ticker}",
+                            expand=False,
+                        )
+                    )
+
+                if news and result.get("news_analysis"):
+                    rprint(
+                        Panel(
+                            result["news_analysis"][:2000] + "..."
+                            if len(result["news_analysis"]) > 2000
+                            else result["news_analysis"],
+                            title="News Analysis",
+                            expand=False,
+                        )
+                    )
+        else:
+            rprint(f"[red]Error: {result.get('error', 'Unknown error')}[/red]")
+            raise typer.Exit(1)
+
+    except Exception as e:
+        logger.error("Analyze command failed", error=str(e))
+        rprint(f"[red]Error: {e!s}[/red]")
+        raise typer.Exit(1)
