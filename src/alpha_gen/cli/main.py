@@ -5,9 +5,14 @@ from __future__ import annotations
 import structlog
 import typer
 
-from ..config.settings import get_config
-from ..utils.logging import setup_logging
-from .commands import analyze_app, news_app, opportunities_app, research_app
+from alpha_gen.config.settings import get_config
+from alpha_gen.utils.logging import setup_logging
+from alpha_gen.cli.commands import (
+    analyze_app,
+    news_app,
+    opportunities_app,
+    research_app,
+)
 
 # Create main Typer app
 app = typer.Typer(

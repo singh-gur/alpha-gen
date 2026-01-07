@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..config.settings import get_config
+from alpha_gen.config.settings import get_config
 
 
 class ObservabilityManager:
@@ -17,7 +17,10 @@ class ObservabilityManager:
     @property
     def is_enabled(self) -> bool:
         """Check if observability is enabled."""
-        return self.config.observability.enabled and self.config.observability.is_configured
+        return (
+            self.config.observability.enabled
+            and self.config.observability.is_configured
+        )
 
     def get_client(self) -> Any | None:
         """Get the LangFuse client."""

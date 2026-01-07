@@ -2,8 +2,8 @@
 
 __version__ = "0.1.0"
 
-from .agents import analyze_news, find_opportunities, research_company
-from .cli import app
+from alpha_gen.agents import analyze_news, find_opportunities, research_company
+from alpha_gen.cli import app
 
 __all__ = [
     "__version__",

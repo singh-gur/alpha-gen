@@ -11,10 +11,10 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph
 
-from ..config.settings import get_config
-from ..scrapers.yahoo_finance import YahooFinanceScraper
-from ..utils.logging import get_logger
-from .base import AgentConfig, AgentState, BaseAgent
+from alpha_gen.config.settings import get_config
+from alpha_gen.scrapers.yahoo_finance import YahooFinanceScraper
+from alpha_gen.utils.logging import get_logger
+from alpha_gen.agents.base import AgentConfig, AgentState, BaseAgent
 
 logger = get_logger(__name__)
 
@@ -109,10 +109,12 @@ Aggregate the findings into a market sentiment overview.
         api_key=config.llm.api_key,
     )
 
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", NEWS_SYSTEM_PROMPT),
-        ("human", analysis_prompt),
-    ])
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", NEWS_SYSTEM_PROMPT),
+            ("human", analysis_prompt),
+        ]
+    )
 
     chain = prompt | llm | StrOutputParser()
 
@@ -169,10 +171,12 @@ Focus on the most actionable opportunities with clear catalysts.
         api_key=config.llm.api_key,
     )
 
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", NEWS_SYSTEM_PROMPT),
-        ("human", opportunities_prompt),
-    ])
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", NEWS_SYSTEM_PROMPT),
+            ("human", opportunities_prompt),
+        ]
+    )
 
     chain = prompt | llm | StrOutputParser()
 

@@ -2,7 +2,7 @@
 
 import sys
 
-from .cli.main import app
+from alpha_gen.cli.main import app
 
 
 def main() -> None:

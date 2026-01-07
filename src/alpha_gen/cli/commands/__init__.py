@@ -1,9 +1,9 @@
 """CLI commands subpackage."""
 
-from .analyze import analyze_app
-from .news import news_app
-from .opportunities import opportunities_app
-from .research import research_app
+from alpha_gen.cli.commands.analyze import analyze_app
+from alpha_gen.cli.commands.news import news_app
+from alpha_gen.cli.commands.opportunities import opportunities_app
+from alpha_gen.cli.commands.research import research_app
 
 __all__ = [
     "analyze_app",

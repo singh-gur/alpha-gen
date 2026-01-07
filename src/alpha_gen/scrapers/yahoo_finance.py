@@ -11,8 +11,8 @@ from typing import Any
 from bs4 import BeautifulSoup, Tag
 from playwright.async_api import async_playwright
 
-from ..utils.logging import get_logger
-from .base import BaseScraper, ScrapedData
+from alpha_gen.utils.logging import get_logger
+from alpha_gen.scrapers.base import BaseScraper, ScrapedData
 
 logger = get_logger(__name__)
 
@@ -81,7 +81,9 @@ class YahooFinanceScraper(BaseScraper):
         """Ensure browser is initialized."""
         if self._browser is None:
             self._playwright = await async_playwright().start()
-            self._browser = await self._playwright.chromium.launch(headless=self.headless)
+            self._browser = await self._playwright.chromium.launch(
+                headless=self.headless
+            )
             assert self._browser is not None, "Browser should be initialized"
             self._context = await self._browser.new_context(
                 user_agent=(
@@ -99,7 +101,9 @@ class YahooFinanceScraper(BaseScraper):
         page = await self._context.new_page()  # type: ignore[union-attr]
         try:
             self._logger.info("Fetching page", url=url)
-            await page.goto(url, timeout=self.timeout * 1000, wait_until="domcontentloaded")
+            await page.goto(
+                url, timeout=self.timeout * 1000, wait_until="domcontentloaded"
+            )
 
             # Wait for dynamic content to load
             await page.wait_for_load_state("networkidle")
@@ -165,7 +169,9 @@ class YahooFinanceScraper(BaseScraper):
                 data["financials_html"] = str(financial_table)
 
         except Exception as e:
-            self._logger.warning("Failed to parse company info", ticker=ticker, error=str(e))
+            self._logger.warning(
+                "Failed to parse company info", ticker=ticker, error=str(e)
+            )
 
         return data
 
@@ -199,7 +205,9 @@ class YahooFinanceScraper(BaseScraper):
                     data[section] = str(section_elem)
 
         except Exception as e:
-            self._logger.warning("Failed to parse financials", ticker=ticker, error=str(e))
+            self._logger.warning(
+                "Failed to parse financials", ticker=ticker, error=str(e)
+            )
 
         return data
 
@@ -232,7 +240,9 @@ class YahooFinanceScraper(BaseScraper):
                 data["competitors_html"] = str(table)
 
         except Exception as e:
-            self._logger.warning("Failed to parse competitors", ticker=ticker, error=str(e))
+            self._logger.warning(
+                "Failed to parse competitors", ticker=ticker, error=str(e)
+            )
 
         return data
 
@@ -249,7 +259,9 @@ class YahooFinanceScraper(BaseScraper):
             timestamp=time.time(),
         )
 
-    def _parse_news(self, html: str, ticker: str, url: str, limit: int) -> dict[str, Any]:
+    def _parse_news(
+        self, html: str, ticker: str, url: str, limit: int
+    ) -> dict[str, Any]:
         """Parse news articles from HTML."""
         soup = BeautifulSoup(html, "lxml")
 

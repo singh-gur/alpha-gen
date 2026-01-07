@@ -12,8 +12,8 @@ from langchain_core.embeddings import Embeddings
 from langchain_core.vectorstores import VectorStoreRetriever
 from sentence_transformers import SentenceTransformer
 
-from ..config.settings import get_config
-from ..utils.logging import get_logger
+from alpha_gen.config.settings import get_config
+from alpha_gen.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -130,7 +130,9 @@ class VectorStoreManager:
             for doc in docs
         ]
 
-    def get_retriever(self, search_kwargs: dict[str, Any] | None = None) -> VectorStoreRetriever:
+    def get_retriever(
+        self, search_kwargs: dict[str, Any] | None = None
+    ) -> VectorStoreRetriever:
         """Get a retriever for the vector store.
 
         Args:
@@ -139,16 +141,16 @@ class VectorStoreManager:
         Returns:
             VectorStoreRetriever instance
         """
-        return self.vector_store.as_retriever(
-            search_kwargs=search_kwargs or {"k": 5}
-        )
+        return self.vector_store.as_retriever(search_kwargs=search_kwargs or {"k": 5})
 
     def delete_collection(self) -> None:
         """Delete the current collection."""
         if self._vector_store:
             self._vector_store.delete_collection()
             self._vector_store = None
-            logger.info("Deleted vector store collection", collection=self.collection_name)
+            logger.info(
+                "Deleted vector store collection", collection=self.collection_name
+            )
 
     def clear_all(self) -> None:
         """Clear all data from the vector store."""
@@ -198,7 +200,9 @@ class DocumentProcessor:
             }
             documents.append(Document(page_content=chunk, metadata=doc_metadata))
 
-        logger.debug("Processed content into chunks", source=source, chunks=len(documents))
+        logger.debug(
+            "Processed content into chunks", source=source, chunks=len(documents)
+        )
         return documents
 
     def _chunk_content(
