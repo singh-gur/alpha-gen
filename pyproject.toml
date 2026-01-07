@@ -1,0 +1,147 @@
+[project]
+name = "alpha-gen"
+version = "0.1.0"
+description = "Multi-agentic AI application for investment research using Yahoo Finance data"
+readme = "README.md"
+requires-python = ">=3.13"
+license = { text = "MIT" }
+authors = [
+    { name = "Alpha Gen Team", email = "team@alphagen.dev" }
+]
+dependencies = [
+    # Core AI/LLM dependencies
+    "langchain>=0.3.0",
+    "langchain-core>=0.3.0",
+    "langgraph>=0.2.0",
+    "langchain-openai>=0.2.0",
+    "langchain-anthropic>=0.2.0",
+
+    # Vector store and embeddings
+    "langchain-chroma>=0.1.0",
+    "langchain-community>=0.3.0",
+    "sentence-transformers>=3.0.0",
+
+    # Web scraping and automation
+    "playwright>=1.48.0",
+    "beautifulsoup4>=4.12.0",
+    "lxml>=5.0.0",
+    "httpx>=0.27.0",
+
+    # CLI
+    "click>=8.1.0",
+    "rich>=13.0.0",
+    "typer>=0.12.0",
+
+    # Data processing
+    "pandas>=2.2.0",
+    "numpy>=2.0.0",
+    "pydantic>=2.10.0",
+
+    # Observability
+    "langfuse>=3.0.0",
+    "structlog>=24.0.0",
+
+    # Configuration
+    "pyyaml>=6.0.0",
+    "python-dotenv>=1.0.0",
+
+    # Utilities
+    "tenacity>=8.5.0",
+    "aiofiles>=24.0.0",
+    "tabulate>=0.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.7.0",
+    "basedpyright>=1.0.0",
+    "mypy>=1.13.0",
+    "pre-commit>=4.0.0",
+    "black>=24.0.0",
+    "ipython>=8.0.0",
+]
+
+[project.scripts]
+alpha-gen = "alpha_gen.cli.main:entrypoint"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "ARG", # flake8-unused-arguments
+    "SIM", # flake8-simplify
+    "TCH", # flake8-type-checking
+    "PTH", # flake8-use-pathlib
+    "PERF", # flake8-perf
+    "RUF", # Ruff-specific rules
+    "YTT", # flake8-2020
+    "ASYNC", # flake8-async
+    "A",   # flake8-builtins
+]
+ignore = [
+    "E501",  # line too long, handled by formatter
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "TC001", "TC002", "TC003", # type checking imports - optional optimization
+    "B904",  # raise from in except - optional style
+    "B905",  # zip strict parameter - optional style
+    "ARG001", "ARG002", # unused arguments - sometimes intentional
+    "SIM105", # contextlib.suppress - optional style
+    "PTH123", # Path.open() - optional style
+    "A002", # shadowing builtin - intentional in this case
+    "B027", # empty method in abstract class - sometimes needed
+    "ASYNC109", # asyncio timeout - optional optimization
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/**" = ["ARG001", "S101"]
+"*.pyi" = ["ALL"]
+
+[tool.ruff.isort]
+known-first-party = ["alpha_gen"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+[tool.coverage.run]
+source = ["alpha_gen"]
+omit = ["*/tests/*", "*/test_*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]

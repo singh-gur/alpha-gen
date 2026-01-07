@@ -1,0 +1,248 @@
+"""Opportunities agent for finding investment opportunities."""
+
+from __future__ import annotations
+
+import time
+from typing import Any
+
+from langchain_core.messages import HumanMessage
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
+from langgraph.graph import StateGraph
+
+from ..config.settings import get_config
+from ..scrapers.yahoo_finance import scrape_losers
+from ..utils.logging import get_logger
+from .base import AgentConfig, AgentState, BaseAgent
+
+logger = get_logger(__name__)
+
+
+OPPORTUNITIES_SYSTEM_PROMPT = """You are an expert investment analyst specializing in identifying
+value investment opportunities. Your task is to analyze market data and
+identify stocks that may be undervalued or have strong fundamentals despite
+recent underperformance.
+
+Key criteria for analysis:
+1. Price drop magnitude and recent trend
+2. Trading volume and liquidity
+3. Potential catalysts for recovery
+4. Fundamental metrics (P/E, revenue growth, etc.)
+5. Sector performance and trends
+6. Risk assessment
+
+For each opportunity identified, provide:
+- Ticker and company name
+- Why it appears undervalued or has recovery potential
+- Key metrics and data points
+- Risk factors
+- Confidence level (high/medium/low)
+"""
+
+
+async def fetch_losers_node(state: AgentState) -> AgentState:
+    """Fetch losers list data."""
+    logger.info("Fetching losers list")
+
+    try:
+        scraped_data = await scrape_losers(limit=state["context"].get("limit", 25))
+
+        return {
+            **state,
+            "context": {
+                **state["context"],
+                "losers_data": scraped_data.content,
+            },
+            "current_step": "analyzing",
+        }
+    except Exception as e:
+        logger.error("Failed to fetch losers", error=str(e))
+        return {
+            **state,
+            "error_message": f"Failed to fetch losers: {e!s}",
+        }
+
+
+async def fetch_detailed_data_node(state: AgentState) -> AgentState:
+    """Fetch detailed data for top opportunities."""
+    losers = state["context"].get("losers_data", {}).get("losers", [])
+    tickers_to_analyze = [loser["ticker"] for loser in losers[:5]]  # Top 5 losers
+
+    logger.info("Fetching detailed data for analysis", tickers=tickers_to_analyze)
+
+    from ..scrapers.yahoo_finance import scrape_company_data
+
+    detailed_data: dict[str, Any] = {}
+
+    for ticker in tickers_to_analyze:
+        try:
+            company_data = await scrape_company_data(ticker)
+            detailed_data[ticker] = {
+                source: {
+                    "source": data.source,
+                    "url": data.url,
+                    "content": data.content,
+                }
+                for source, data in company_data.items()
+            }
+        except Exception as e:
+            logger.warning(f"Failed to fetch data for {ticker}", error=str(e))
+
+    return {
+        **state,
+        "context": {
+            **state["context"],
+            "detailed_data": detailed_data,
+        },
+        "current_step": "identifying_opportunities",
+    }
+
+
+async def identify_opportunities_node(state: AgentState) -> AgentState:
+    """Analyze data to identify investment opportunities."""
+    context = state["context"]
+    losers_data = context.get("losers_data", {}).get("losers", [])
+    detailed_data = context.get("detailed_data", {})
+
+    analysis_prompt = f"""Analyze the following market data to identify investment opportunities:
+
+Losers List Data:
+{losers_data[:10]!s}
+
+Detailed Analysis for Top Losers:
+{str(detailed_data)[:3000]}
+
+Based on this data, identify the most promising investment opportunities.
+Focus on companies that:
+1. Have strong fundamentals but are oversold
+2. Have positive news catalysts or recovery potential
+3. Show unusual trading activity
+4. Are in sectors with favorable trends
+
+For each opportunity, provide:
+1. Ticker and brief company description
+2. Why it's a potential opportunity
+3. Key metrics supporting the thesis
+4. Risk factors
+5. Confidence level
+
+Format the output as a structured report.
+"""
+
+    config = get_config()
+    llm = ChatOpenAI(
+        model=config.llm.model_name,
+        temperature=config.llm.temperature,
+        api_key=config.llm.api_key,
+    )
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", OPPORTUNITIES_SYSTEM_PROMPT),
+        ("human", analysis_prompt),
+    ])
+
+    chain = prompt | llm | StrOutputParser()
+
+    try:
+        analysis = await chain.ainvoke({})
+
+        return {
+            **state,
+            "messages": state["messages"] + [HumanMessage(content=analysis)],
+            "result": analysis,
+            "current_step": "completed",
+        }
+    except Exception as e:
+        logger.error("Opportunity analysis failed", error=str(e))
+        return {
+            **state,
+            "error_message": f"Analysis failed: {e!s}",
+        }
+
+
+def create_opportunities_workflow() -> StateGraph:
+    """Create the opportunities agent workflow."""
+    workflow = StateGraph(AgentState)
+
+    workflow.add_node("fetch_losers", fetch_losers_node)
+    workflow.add_node("fetch_detailed", fetch_detailed_data_node)
+    workflow.add_node("identify", identify_opportunities_node)
+
+    workflow.set_entry_point("fetch_losers")
+    workflow.add_edge("fetch_losers", "fetch_detailed")
+    workflow.add_edge("fetch_detailed", "identify")
+    workflow.add_edge("identify", "final")
+
+    return workflow
+
+
+class OpportunitiesAgent(BaseAgent):
+    """Agent for identifying investment opportunities."""
+
+    def __init__(self, config: AgentConfig | None = None) -> None:
+        super().__init__("opportunities_agent", config)
+        self._workflow = create_opportunities_workflow()
+
+    def create_workflow(self) -> StateGraph:
+        """Create the agent workflow graph."""
+        return self._workflow
+
+    async def run(self, input_data: dict[str, Any]) -> dict[str, Any]:
+        """Run the opportunities agent.
+
+        Args:
+            input_data: Dictionary with optional 'limit' key
+
+        Returns:
+            Investment opportunities analysis
+        """
+        initial_state: AgentState = {
+            "messages": [],
+            "current_step": "initializing",
+            "context": {
+                "limit": input_data.get("limit", 25),
+            },
+            "result": None,
+            "error_message": None,
+        }
+
+        try:
+            start_time = time.time()
+
+            result = await self._workflow.ainvoke(initial_state)
+
+            duration_ms = (time.time() - start_time) * 1000
+
+            logger.info(
+                "Opportunities analysis completed",
+                limit=input_data.get("limit", 25),
+                duration_ms=duration_ms,
+            )
+
+            return {
+                "status": "success",
+                "analysis": result.get("result"),
+                "losers_data": result.get("context", {}).get("losers_data"),
+                "duration_ms": duration_ms,
+            }
+
+        except Exception as e:
+            logger.error("Opportunities analysis failed", error=str(e))
+            return {
+                "status": "error",
+                "error": str(e),
+            }
+
+
+async def find_opportunities(limit: int = 25) -> dict[str, Any]:
+    """Convenience function to find investment opportunities.
+
+    Args:
+        limit: Number of losers to analyze
+
+    Returns:
+        Investment opportunities analysis
+    """
+    agent = OpportunitiesAgent()
+    return await agent.run({"limit": limit})
