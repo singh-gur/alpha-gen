@@ -9,7 +9,7 @@ import structlog
 import typer
 from rich import print as rprint
 
-from ...agents import research_company
+from alpha_gen.agents import research_company
 from alpha_gen.cli.helpers import output_result
 
 logger = structlog.get_logger(__name__)
