@@ -134,7 +134,7 @@ Format the output as a structured report.
     llm = ChatOpenAI(
         model=config.llm.model_name,
         temperature=config.llm.temperature,
-        api_key=config.llm.api_key,
+        api_key=config.llm.api_key,  # type: ignore[arg-type]
     )
 
     prompt = ChatPromptTemplate.from_messages(
@@ -212,7 +212,7 @@ class OpportunitiesAgent(BaseAgent):
         try:
             start_time = time.time()
 
-            result = await self._workflow.ainvoke(initial_state)
+            result = await self._workflow.ainvoke(initial_state)  # type: ignore[attr-defined]
 
             duration_ms = (time.time() - start_time) * 1000
 

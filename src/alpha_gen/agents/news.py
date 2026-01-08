@@ -58,7 +58,7 @@ async def fetch_market_news_node(state: AgentState) -> AgentState:
         for ticker in tickers:
             try:
                 news_data = await scraper.get_news(ticker, limit=5)
-                all_news.extend(
+                all_news.append(  # type: ignore[arg-type]
                     {
                         "ticker": ticker,
                         "articles": news_data.content.get("articles", []),
@@ -106,7 +106,7 @@ Aggregate the findings into a market sentiment overview.
     llm = ChatOpenAI(
         model=config.llm.model_name,
         temperature=config.llm.temperature,
-        api_key=config.llm.api_key,
+        api_key=config.llm.api_key,  # type: ignore[arg-type]
     )
 
     prompt = ChatPromptTemplate.from_messages(
@@ -168,7 +168,7 @@ Focus on the most actionable opportunities with clear catalysts.
     llm = ChatOpenAI(
         model=config.llm.model_name,
         temperature=config.llm.temperature,
-        api_key=config.llm.api_key,
+        api_key=config.llm.api_key,  # type: ignore[arg-type]
     )
 
     prompt = ChatPromptTemplate.from_messages(
@@ -244,7 +244,7 @@ class NewsAgent(BaseAgent):
         try:
             start_time = time.time()
 
-            result = await self._workflow.ainvoke(initial_state)
+            result = await self._workflow.ainvoke(initial_state)  # type: ignore[attr-defined]
 
             duration_ms = (time.time() - start_time) * 1000
 
