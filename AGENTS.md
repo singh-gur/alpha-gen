@@ -173,7 +173,7 @@ async def load_config(path: Path) -> AppConfig:
 from pydantic import BaseModel, Field, field_validator
 
 class LLMConfig(BaseModel):
-    provider: Literal["openai", "anthropic", "google"] = "openai"
+    provider: Literal["openai", "anthropic", "google", "openrouter", "ollama"] = "openai"
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0)
 
@@ -181,7 +181,7 @@ class LLMConfig(BaseModel):
 
     @field_validator("provider")
     def validate_provider(cls, v: str) -> str:
-        valid = ["openai", "anthropic", "google"]
+        valid = ["openai", "anthropic", "google", "openrouter", "ollama"]
         if v not in valid:
             raise ValueError(f"Invalid provider: {v}")
         return v

@@ -11,8 +11,8 @@ from typing import Any
 from bs4 import BeautifulSoup, Tag
 from playwright.async_api import async_playwright
 
-from alpha_gen.utils.logging import get_logger
 from alpha_gen.scrapers.base import BaseScraper, ScrapedData
+from alpha_gen.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -11,10 +11,10 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph
 
+from alpha_gen.agents.base import AgentConfig, AgentState, BaseAgent
 from alpha_gen.config.settings import get_config
 from alpha_gen.scrapers.yahoo_finance import scrape_company_data
 from alpha_gen.utils.logging import get_logger
-from alpha_gen.agents.base import AgentConfig, AgentState, BaseAgent
 
 logger = get_logger(__name__)
 

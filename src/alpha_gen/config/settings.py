@@ -15,7 +15,9 @@ from pydantic import BaseModel, Field, validator
 class LLMConfig(BaseModel):
     """Configuration for LLM providers."""
 
-    provider: Literal["openai", "anthropic", "google"] = "openai"  # type: ignore[assignment]
+    provider: Literal["openai", "anthropic", "google", "openrouter", "ollama"] = (
+        "openai"  # type: ignore[assignment]
+    )
     model_name: str = "gpt-4o"
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0)
@@ -27,7 +29,7 @@ class LLMConfig(BaseModel):
     @validator("provider")
     def validate_provider(cls, v: str) -> str:  # type: ignore[no-untyped-def]
         """Validate LLM provider."""
-        valid_providers = ["openai", "anthropic", "google"]
+        valid_providers = ["openai", "anthropic", "google", "openrouter", "ollama"]
         if v not in valid_providers:
             raise ValueError(f"Invalid provider: {v}. Must be one of {valid_providers}")
         return v
@@ -126,7 +128,9 @@ class AppConfig(BaseModel):
                 config_data = yaml.safe_load(f) or {}
             return cls(**config_data)
         except (yaml.YAMLError, ValueError) as e:
-            raise ValueError(f"Failed to load configuration from {config_path}: {e}") from e
+            raise ValueError(
+                f"Failed to load configuration from {config_path}: {e}"
+            ) from e
 
     @classmethod
     def from_env(cls) -> AppConfig:
@@ -144,9 +148,13 @@ class AppConfig(BaseModel):
 
         vector_store_config = VectorStoreConfig(
             provider=os.getenv("VECTOR_STORE_PROVIDER", "chroma"),  # type: ignore[arg-type]
-            persist_directory=Path(os.getenv("VECTOR_STORE_DIR", "./data/vector_store")),
-            collection_name=os.getenv("VECTOR_STORE_COLLECTION", "alpha_gen_docs") or "alpha_gen_docs",
-            embedding_model=os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2") or "all-MiniLM-L6-v2",
+            persist_directory=Path(
+                os.getenv("VECTOR_STORE_DIR", "./data/vector_store")
+            ),
+            collection_name=os.getenv("VECTOR_STORE_COLLECTION", "alpha_gen_docs")
+            or "alpha_gen_docs",
+            embedding_model=os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+            or "all-MiniLM-L6-v2",
         )
 
         scraping_config = ScrapingConfig(
