@@ -17,8 +17,8 @@ class TestLLMConfig:
         """Test default configuration values."""
         config = LLMConfig()
 
-        assert config.provider == "openai"
-        assert config.model_name == "gpt-4o"
+        assert config.provider == "openrouter"
+        assert config.model_name == "openrouter/default"
         assert config.temperature == 0.7
         assert config.max_tokens == 4096
         assert config.api_key is None
@@ -27,18 +27,31 @@ class TestLLMConfig:
     def test_custom_values(self) -> None:
         """Test custom configuration values."""
         config = LLMConfig(
-            provider="anthropic",
-            model_name="claude-3-opus-20240229",
+            provider="ollama",
+            model_name="llama3",
             temperature=0.5,
             max_tokens=8192,
             api_key="test-key",
         )
 
-        assert config.provider == "anthropic"
-        assert config.model_name == "claude-3-opus-20240229"
+        assert config.provider == "ollama"
+        assert config.model_name == "llama3"
         assert config.temperature == 0.5
         assert config.max_tokens == 8192
         assert config.api_key == "test-key"
+
+    def test_provider_validation(self) -> None:
+        """Test provider validation."""
+        # Valid providers
+        config = LLMConfig(provider="openrouter")
+        assert config.provider == "openrouter"
+
+        config = LLMConfig(provider="ollama")
+        assert config.provider == "ollama"
+
+        # Invalid provider
+        with pytest.raises(ValueError):
+            LLMConfig(provider="openai")
 
     def test_temperature_validation(self) -> None:
         """Test temperature validation."""

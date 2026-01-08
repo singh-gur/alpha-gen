@@ -15,10 +15,8 @@ from pydantic import BaseModel, Field, validator
 class LLMConfig(BaseModel):
     """Configuration for LLM providers."""
 
-    provider: Literal["openai", "anthropic", "google", "openrouter", "ollama"] = (
-        "openai"  # type: ignore[assignment]
-    )
-    model_name: str = "gpt-4o"
+    provider: Literal["openrouter", "ollama"] = "openrouter"  # type: ignore[assignment]
+    model_name: str = "openrouter/default"
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0)
     api_key: str | None = None
@@ -29,7 +27,7 @@ class LLMConfig(BaseModel):
     @validator("provider")
     def validate_provider(cls, v: str) -> str:  # type: ignore[no-untyped-def]
         """Validate LLM provider."""
-        valid_providers = ["openai", "anthropic", "google", "openrouter", "ollama"]
+        valid_providers = ["openrouter", "ollama"]
         if v not in valid_providers:
             raise ValueError(f"Invalid provider: {v}. Must be one of {valid_providers}")
         return v
@@ -138,8 +136,8 @@ class AppConfig(BaseModel):
         import os
 
         llm_config = LLMConfig(
-            provider=os.getenv("LLM_PROVIDER", "openai"),  # type: ignore[arg-type]
-            model_name=os.getenv("LLM_MODEL", "gpt-4o") or "gpt-4o",
+            provider=os.getenv("LLM_PROVIDER", "openrouter"),  # type: ignore[arg-type]
+            model_name=os.getenv("LLM_MODEL", "openrouter/default"),
             temperature=float(os.getenv("LLM_TEMPERATURE", "0.7")),
             max_tokens=int(os.getenv("LLM_MAX_TOKENS", "4096")),
             api_key=os.getenv("LLM_API_KEY"),
