@@ -17,7 +17,8 @@ class TestLLMConfig:
         """Test default configuration values."""
         config = LLMConfig()
 
-        assert config.provider == "openrouter"
+        # provider is now a property inferred from base_url
+        assert config.provider == "openrouter"  # default when base_url is None
         assert config.model_name == "openrouter/default"
         assert config.temperature == 0.7
         assert config.max_tokens == 4096
@@ -27,31 +28,39 @@ class TestLLMConfig:
     def test_custom_values(self) -> None:
         """Test custom configuration values."""
         config = LLMConfig(
-            provider="ollama",
             model_name="llama3",
             temperature=0.5,
             max_tokens=8192,
             api_key="test-key",
+            base_url="http://localhost:11434/v1",
         )
 
-        assert config.provider == "ollama"
+        assert config.provider == "ollama"  # inferred from localhost base_url
         assert config.model_name == "llama3"
         assert config.temperature == 0.5
         assert config.max_tokens == 8192
         assert config.api_key == "test-key"
 
-    def test_provider_validation(self) -> None:
-        """Test provider validation."""
-        # Valid providers
-        config = LLMConfig(provider="openrouter")
+    def test_provider_inference(self) -> None:
+        """Test provider inference from base_url."""
+        # No base_url defaults to openrouter
+        config = LLMConfig()
         assert config.provider == "openrouter"
 
-        config = LLMConfig(provider="ollama")
+        # localhost implies ollama
+        config = LLMConfig(base_url="http://localhost:11434/v1")
         assert config.provider == "ollama"
 
-        # Invalid provider
-        with pytest.raises(ValueError):
-            LLMConfig(provider="openai")
+        config = LLMConfig(base_url="http://127.0.0.1:11434/v1")
+        assert config.provider == "ollama"
+
+        # openrouter in URL implies openrouter
+        config = LLMConfig(base_url="https://openrouter.ai/api/v1")
+        assert config.provider == "openrouter"
+
+        # unknown URL falls back to openai-compatible
+        config = LLMConfig(base_url="https://api.example.com/v1")
+        assert config.provider == "openai-compatible"
 
     def test_temperature_validation(self) -> None:
         """Test temperature validation."""

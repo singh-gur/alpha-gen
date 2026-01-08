@@ -170,21 +170,28 @@ async def load_config(path: Path) -> AppConfig:
 - Prefer `default_factory` for mutable defaults
 
 ```python
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 class LLMConfig(BaseModel):
-    provider: Literal["openrouter", "ollama"] = "openrouter"
+    """OpenAI-compatible LLM configuration. Provider is inferred from base_url."""
+    model_name: str = "openrouter/default"
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0)
+    api_key: str | None = None
+    base_url: str | None = None
 
     model_config = {"frozen": True}
 
-    @field_validator("provider")
-    def validate_provider(cls, v: str) -> str:
-        valid = ["openrouter", "ollama"]
-        if v not in valid:
-            raise ValueError(f"Invalid provider: {v}")
-        return v
+    @property
+    def provider(self) -> str:
+        """Infer provider from base_url."""
+        if self.base_url is None:
+            return "openrouter"
+        if "localhost" in self.base_url or "127.0.0.1" in self.base_url:
+            return "ollama"
+        if "openrouter" in self.base_url:
+            return "openrouter"
+        return "openai-compatible"
 ```
 
 ### Async/Await

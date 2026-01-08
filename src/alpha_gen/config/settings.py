@@ -13,9 +13,8 @@ from pydantic import BaseModel, Field, validator
 
 
 class LLMConfig(BaseModel):
-    """Configuration for LLM providers."""
+    """Configuration for LLM (OpenAI-compatible API)."""
 
-    provider: Literal["openrouter", "ollama"] = "openrouter"  # type: ignore[assignment]
     model_name: str = "openrouter/default"
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0)
@@ -24,13 +23,16 @@ class LLMConfig(BaseModel):
 
     model_config = {"frozen": True}
 
-    @validator("provider")
-    def validate_provider(cls, v: str) -> str:  # type: ignore[no-untyped-def]
-        """Validate LLM provider."""
-        valid_providers = ["openrouter", "ollama"]
-        if v not in valid_providers:
-            raise ValueError(f"Invalid provider: {v}. Must be one of {valid_providers}")
-        return v
+    @property
+    def provider(self) -> str:
+        """Infer provider from base_url for logging/debugging."""
+        if self.base_url is None:
+            return "openrouter"
+        if "localhost" in self.base_url or "127.0.0.1" in self.base_url:
+            return "ollama"
+        if "openrouter" in self.base_url:
+            return "openrouter"
+        return "openai-compatible"
 
 
 class VectorStoreConfig(BaseModel):
@@ -136,12 +138,11 @@ class AppConfig(BaseModel):
         import os
 
         llm_config = LLMConfig(
-            provider=os.getenv("LLM_PROVIDER", "openrouter"),  # type: ignore[arg-type]
             model_name=os.getenv("LLM_MODEL", "openrouter/default"),
             temperature=float(os.getenv("LLM_TEMPERATURE", "0.7")),
             max_tokens=int(os.getenv("LLM_MAX_TOKENS", "4096")),
             api_key=os.getenv("LLM_API_KEY"),
-            base_url=os.getenv("LLM_BASE_URL"),
+            base_url=os.getenv("LLM_BASE_URL") or None,
         )
 
         vector_store_config = VectorStoreConfig(
