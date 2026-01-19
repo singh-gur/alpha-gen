@@ -13,7 +13,10 @@ from langgraph.graph import StateGraph
 
 from alpha_gen.agents.base import AgentConfig, AgentState, BaseAgent
 from alpha_gen.config.settings import get_config
-from alpha_gen.scrapers.yahoo_finance import scrape_losers
+from alpha_gen.data_sources.alpha_vantage import (
+    AlphaVantageClient,
+    fetch_company_overview,
+)
 from alpha_gen.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -42,49 +45,77 @@ For each opportunity identified, provide:
 
 
 async def fetch_losers_node(state: AgentState) -> AgentState:
-    """Fetch losers list data."""
-    logger.info("Fetching losers list")
+    """Fetch top gainers and losers from Alpha Vantage."""
+    logger.info("Fetching top gainers and losers from Alpha Vantage")
+
+    config = get_config()
+    if not config.alpha_vantage.is_configured:
+        return {
+            **state,
+            "error_message": "Alpha Vantage API key not configured",
+        }
 
     try:
-        scraped_data = await scrape_losers(limit=state["context"].get("limit", 25))
+        client = AlphaVantageClient(
+            api_key=config.alpha_vantage.api_key,  # type: ignore[arg-type]
+            timeout=config.alpha_vantage.timeout_seconds,
+        )
 
-        return {
-            **state,
-            "context": {
-                **state["context"],
-                "losers_data": scraped_data.content,
-            },
-            "current_step": "analyzing",
-        }
+        try:
+            data = await client.get_top_gainers_losers()
+
+            # Extract losers from the response
+            losers = data.content.get("top_losers", [])
+            limit = state["context"].get("limit", 25)
+
+            return {
+                **state,
+                "context": {
+                    **state["context"],
+                    "losers_data": losers[:limit],
+                    "gainers_data": data.content.get("top_gainers", [])[:limit],
+                    "most_active": data.content.get("most_actively_traded", [])[:limit],
+                },
+                "current_step": "analyzing",
+            }
+        finally:
+            await client.close()
+
     except Exception as e:
-        logger.error("Failed to fetch losers", error=str(e))
+        logger.error("Failed to fetch market movers", error=str(e))
         return {
             **state,
-            "error_message": f"Failed to fetch losers: {e!s}",
+            "error_message": f"Failed to fetch market movers: {e!s}",
         }
 
 
 async def fetch_detailed_data_node(state: AgentState) -> AgentState:
-    """Fetch detailed data for top opportunities."""
-    losers = state["context"].get("losers_data", {}).get("losers", [])
+    """Fetch detailed company overview data for top losers."""
+    losers = state["context"].get("losers_data", [])
     tickers_to_analyze = [loser["ticker"] for loser in losers[:5]]  # Top 5 losers
 
-    logger.info("Fetching detailed data for analysis", tickers=tickers_to_analyze)
+    logger.info(
+        "Fetching detailed company data from Alpha Vantage", tickers=tickers_to_analyze
+    )
 
-    from alpha_gen.scrapers.yahoo_finance import scrape_company_data
+    config = get_config()
+    if not config.alpha_vantage.is_configured:
+        return {
+            **state,
+            "error_message": "Alpha Vantage API key not configured",
+        }
 
     detailed_data: dict[str, Any] = {}
 
     for ticker in tickers_to_analyze:
         try:
-            company_data = await scrape_company_data(ticker)
+            overview_data = await fetch_company_overview(
+                api_key=config.alpha_vantage.api_key,  # type: ignore[arg-type]
+                symbol=ticker,
+                timeout=config.alpha_vantage.timeout_seconds,
+            )
             detailed_data[ticker] = {
-                source: {
-                    "source": data.source,
-                    "url": data.url,
-                    "content": data.content,
-                }
-                for source, data in company_data.items()
+                "overview": overview_data.content,
             }
         except Exception as e:
             logger.warning(f"Failed to fetch data for {ticker}", error=str(e))
@@ -102,7 +133,7 @@ async def fetch_detailed_data_node(state: AgentState) -> AgentState:
 async def identify_opportunities_node(state: AgentState) -> AgentState:
     """Analyze data to identify investment opportunities."""
     context = state["context"]
-    losers_data = context.get("losers_data", {}).get("losers", [])
+    losers_data = context.get("losers_data", [])
     detailed_data = context.get("detailed_data", {})
 
     analysis_prompt = f"""Analyze the following market data to identify investment opportunities:

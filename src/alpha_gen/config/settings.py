@@ -57,19 +57,18 @@ class VectorStoreConfig(BaseModel):
         self.persist_directory.mkdir(parents=True, exist_ok=True)
 
 
-class ScrapingConfig(BaseModel):
-    """Configuration for web scraping."""
+class AlphaVantageConfig(BaseModel):
+    """Configuration for Alpha Vantage API."""
 
+    api_key: str | None = None
     timeout_seconds: int = 30
-    retry_attempts: int = 3
-    delay_between_retries: float = 1.0
-    user_agent: str = (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    )
-    headless: bool = True
 
     model_config = {"frozen": True}
+
+    @property
+    def is_configured(self) -> bool:
+        """Check if Alpha Vantage is properly configured."""
+        return bool(self.api_key)
 
 
 class ObservabilityConfig(BaseModel):
@@ -99,7 +98,7 @@ class AppConfig(BaseModel):
 
     llm: LLMConfig = Field(default_factory=LLMConfig)
     vector_store: VectorStoreConfig = Field(default_factory=VectorStoreConfig)
-    scraping: ScrapingConfig = Field(default_factory=ScrapingConfig)
+    alpha_vantage: AlphaVantageConfig = Field(default_factory=AlphaVantageConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
 
     model_config = {"frozen": True}
@@ -156,11 +155,9 @@ class AppConfig(BaseModel):
             or "all-MiniLM-L6-v2",
         )
 
-        scraping_config = ScrapingConfig(
-            timeout_seconds=int(os.getenv("SCRAPING_TIMEOUT", "30")),
-            retry_attempts=int(os.getenv("SCRAPING_RETRIES", "3")),
-            delay_between_retries=float(os.getenv("SCRAPING_DELAY", "1.0")),
-            headless=os.getenv("SCRAPING_HEADLESS", "True").lower() == "true",
+        alpha_vantage_config = AlphaVantageConfig(
+            api_key=os.getenv("ALPHA_VANTAGE_API_KEY"),
+            timeout_seconds=int(os.getenv("ALPHA_VANTAGE_TIMEOUT", "30")),
         )
 
         observability_config = ObservabilityConfig(
@@ -175,7 +172,7 @@ class AppConfig(BaseModel):
             log_level=os.getenv("LOG_LEVEL", "INFO") or "INFO",  # type: ignore[arg-type]
             llm=llm_config,
             vector_store=vector_store_config,
-            scraping=scraping_config,
+            alpha_vantage=alpha_vantage_config,
             observability=observability_config,
         )
 

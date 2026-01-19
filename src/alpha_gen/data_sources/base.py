@@ -1,4 +1,4 @@
-"""Base scraper module for Alpha Gen."""
+"""Base data source module for Alpha Gen."""
 
 from __future__ import annotations
 
@@ -12,26 +12,25 @@ logger = structlog.get_logger(__name__)
 
 
 @dataclass(frozen=True)
-class ScrapedData:
-    """Base class for scraped data."""
+class SourceData:
+    """Base class for data from any source (API, scraper, etc.)."""
 
     source: str
-    url: str
+    url: str | None
     content: dict[str, Any]
     timestamp: float
 
 
-class BaseScraper(ABC):
-    """Base class for web scrapers."""
+class BaseDataSource(ABC):
+    """Base class for all data sources (APIs, scrapers, etc.)."""
 
-    def __init__(self, timeout: int = 30, headless: bool = True) -> None:
+    def __init__(self, timeout: int = 30) -> None:
         self.timeout = timeout
-        self.headless = headless
-        self._logger = logger.bind(scraper=self.__class__.__name__)
+        self._logger = logger.bind(data_source=self.__class__.__name__)
 
     @abstractmethod
-    async def scrape(self, **kwargs: Any) -> ScrapedData:
-        """Scrape data from the source."""
+    async def fetch(self, **kwargs: Any) -> SourceData:
+        """Fetch data from the source."""
         ...
 
     async def close(self) -> None:

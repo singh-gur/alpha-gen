@@ -13,7 +13,10 @@ from langgraph.graph import StateGraph
 
 from alpha_gen.agents.base import AgentConfig, AgentState, BaseAgent
 from alpha_gen.config.settings import get_config
-from alpha_gen.scrapers.yahoo_finance import scrape_company_data
+from alpha_gen.data_sources.alpha_vantage import (
+    fetch_company_overview,
+    fetch_news_sentiment,
+)
 from alpha_gen.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -36,7 +39,7 @@ Provide specific metrics and figures where available.
 
 
 async def fetch_company_data_node(state: AgentState) -> AgentState:
-    """Fetch company data from Yahoo Finance."""
+    """Fetch company data from Alpha Vantage."""
     ticker = state["context"].get("ticker", "").upper()
 
     if not ticker:
@@ -45,22 +48,35 @@ async def fetch_company_data_node(state: AgentState) -> AgentState:
             "error_message": "No ticker provided",
         }
 
-    logger.info("Fetching company data", ticker=ticker)
+    logger.info("Fetching company data from Alpha Vantage", ticker=ticker)
+
+    config = get_config()
+    if not config.alpha_vantage.is_configured:
+        return {
+            **state,
+            "error_message": "Alpha Vantage API key not configured",
+        }
 
     try:
-        scraped_data = await scrape_company_data(ticker)
+        # Fetch company overview and news sentiment
+        overview_data = await fetch_company_overview(
+            api_key=config.alpha_vantage.api_key,  # type: ignore[arg-type]
+            symbol=ticker,
+            timeout=config.alpha_vantage.timeout_seconds,
+        )
 
-        # Combine all scraped data into context
+        news_data = await fetch_news_sentiment(
+            api_key=config.alpha_vantage.api_key,  # type: ignore[arg-type]
+            tickers=ticker,
+            limit=20,
+            timeout=config.alpha_vantage.timeout_seconds,
+        )
+
+        # Combine all data into context
         combined_context: dict[str, Any] = {
             "ticker": ticker,
-            "scraped_data": {
-                source: {
-                    "source": data.source,
-                    "url": data.url,
-                    "content": data.content,
-                }
-                for source, data in scraped_data.items()
-            },
+            "company_overview": overview_data.content,
+            "news_sentiment": news_data.content,
         }
 
         return {
@@ -77,32 +93,40 @@ async def fetch_company_data_node(state: AgentState) -> AgentState:
 
 
 async def analyze_data_node(state: AgentState) -> AgentState:
-    """Analyze the scraped company data."""
+    """Analyze the company data from Alpha Vantage."""
     context = state["context"]
-    scraped_data = context.get("scraped_data", {})
+    overview = context.get("company_overview", {})
+    news_sentiment = context.get("news_sentiment", {})
     ticker = context.get("ticker", "")
 
     # Build a comprehensive analysis prompt
     analysis_prompt = f"""Analyze the following company data for {ticker}:
 
-Company Info:
-{scraped_data.get("company_info", {}).get("content", {}).get("raw_html", "N/A")[:2000]}
+Company Overview:
+- Name: {overview.get("Name", "N/A")}
+- Sector: {overview.get("Sector", "N/A")}
+- Industry: {overview.get("Industry", "N/A")}
+- Market Cap: {overview.get("MarketCapitalization", "N/A")}
+- P/E Ratio: {overview.get("PERatio", "N/A")}
+- EPS: {overview.get("EPS", "N/A")}
+- Revenue TTM: {overview.get("RevenueTTM", "N/A")}
+- Profit Margin: {overview.get("ProfitMargin", "N/A")}
+- 52 Week High: {overview.get("52WeekHigh", "N/A")}
+- 52 Week Low: {overview.get("52WeekLow", "N/A")}
+- Analyst Target Price: {overview.get("AnalystTargetPrice", "N/A")}
 
-Financials:
-{scraped_data.get("financials", {}).get("content", {}).get("financials_html", "N/A")[:2000]}
+Description:
+{overview.get("Description", "N/A")[:1000]}
 
-Competitors:
-{scraped_data.get("competitors", {}).get("content", {}).get("competitors_html", "N/A")[:2000]}
-
-Recent News:
-{scraped_data.get("news", {}).get("content", {}).get("articles", [])[:10]}
+Recent News & Sentiment:
+{str(news_sentiment.get("feed", [])[:10])[:3000]}
 
 Please provide a comprehensive investment research report including:
-1. Company overview
-2. Financial health
-3. Competitive analysis
-4. News sentiment
-5. Investment recommendation
+1. Company overview and business model
+2. Financial health assessment
+3. Valuation analysis
+4. News sentiment and market perception
+5. Investment recommendation with confidence level
 """
 
     config = get_config()

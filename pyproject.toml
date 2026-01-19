@@ -1,7 +1,7 @@
 [project]
 name = "alpha-gen"
 version = "0.1.0"
-description = "Multi-agentic AI application for investment research using Yahoo Finance data"
+description = "Multi-agentic AI application for investment research using Alpha Vantage API"
 readme = "README.md"
 requires-python = ">=3.13"
 license = { text = "MIT" }
@@ -21,10 +21,7 @@ dependencies = [
     "langchain-community>=0.3.0",
     "sentence-transformers>=3.0.0",
 
-    # Web scraping and automation
-    "playwright>=1.48.0",
-    "beautifulsoup4>=4.12.0",
-    "lxml>=5.0.0",
+    # HTTP client for Alpha Vantage API
     "httpx>=0.27.0",
 
     # CLI

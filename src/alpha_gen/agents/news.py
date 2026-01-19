@@ -13,7 +13,7 @@ from langgraph.graph import StateGraph
 
 from alpha_gen.agents.base import AgentConfig, AgentState, BaseAgent
 from alpha_gen.config.settings import get_config
-from alpha_gen.scrapers.yahoo_finance import YahooFinanceScraper
+from alpha_gen.data_sources.alpha_vantage import fetch_news_sentiment
 from alpha_gen.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -42,36 +42,32 @@ Provide a structured analysis with specific tickers and confidence levels.
 
 
 async def fetch_market_news_node(state: AgentState) -> AgentState:
-    """Fetch market news from various sources."""
-    logger.info("Fetching market news")
+    """Fetch market news and sentiment from Alpha Vantage."""
+    logger.info("Fetching market news from Alpha Vantage")
 
-    scraper = YahooFinanceScraper()
+    config = get_config()
+    if not config.alpha_vantage.is_configured:
+        return {
+            **state,
+            "error_message": "Alpha Vantage API key not configured",
+        }
 
     try:
-        # Get news from most active stocks
-        await scraper._ensure_browser()
+        # Fetch news for major market indices and tech stocks
+        tickers = "SPY,QQQ,DIA,AAPL,MSFT,GOOGL,AMZN,NVDA,TSLA,META"
 
-        # Fetch news for several major indices/stocks
-        tickers = ["SPY", "QQQ", "DIA", "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA"]
-        all_news: list[dict[str, Any]] = []
-
-        for ticker in tickers:
-            try:
-                news_data = await scraper.get_news(ticker, limit=5)
-                all_news.append(  # type: ignore[arg-type]
-                    {
-                        "ticker": ticker,
-                        "articles": news_data.content.get("articles", []),
-                    }
-                )
-            except Exception as e:
-                logger.warning(f"Failed to fetch news for {ticker}", error=str(e))
+        news_data = await fetch_news_sentiment(
+            api_key=config.alpha_vantage.api_key,  # type: ignore[arg-type]
+            tickers=tickers,
+            limit=100,
+            timeout=config.alpha_vantage.timeout_seconds,
+        )
 
         return {
             **state,
             "context": {
                 **state["context"],
-                "news_data": all_news,
+                "news_data": news_data.content,
             },
             "current_step": "analyzing_sentiment",
         }
@@ -81,25 +77,24 @@ async def fetch_market_news_node(state: AgentState) -> AgentState:
             **state,
             "error_message": f"Failed to fetch news: {e!s}",
         }
-    finally:
-        await scraper.close()
 
 
 async def analyze_sentiment_node(state: AgentState) -> AgentState:
     """Analyze sentiment of collected news."""
-    news_data = state["context"].get("news_data", [])
+    news_data = state["context"].get("news_data", {})
+    feed = news_data.get("feed", [])[:20]  # Top 20 articles
 
-    analysis_prompt = f"""Analyze the sentiment and investment implications of the following news:
+    analysis_prompt = f"""Analyze the sentiment and investment implications of the following news articles:
 
-{str(news_data)[:4000]}
+{str(feed)[:5000]}
 
 For each company mentioned, provide:
-1. Overall sentiment (positive/negative/neutral)
-2. Key news drivers
-3. Potential stock price impact
+1. Overall sentiment (positive/negative/neutral) based on sentiment scores
+2. Key news drivers and catalysts
+3. Potential stock price impact (short-term and long-term)
 4. Investment opportunity rating (1-5 stars)
 
-Aggregate the findings into a market sentiment overview.
+Aggregate the findings into a market sentiment overview with actionable insights.
 """
 
     config = get_config()
@@ -141,7 +136,8 @@ Aggregate the findings into a market sentiment overview.
 async def identify_opportunities_node(state: AgentState) -> AgentState:
     """Identify specific investment opportunities from news."""
     sentiment = state["context"].get("sentiment_analysis", "")
-    news_data = state["context"].get("news_data", [])
+    news_data = state["context"].get("news_data", {})
+    feed = news_data.get("feed", [])[:15]
 
     opportunities_prompt = f"""Based on the following news sentiment analysis and raw news data,
 identify specific investment opportunities:
@@ -149,8 +145,8 @@ identify specific investment opportunities:
 Sentiment Analysis:
 {sentiment}
 
-Raw News Data:
-{str(news_data)[:2000]}
+Recent News Articles with Sentiment Scores:
+{str(feed)[:3000]}
 
 For each investment opportunity, provide:
 1. Ticker symbol

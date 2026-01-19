@@ -131,8 +131,8 @@ class Repository(Protocol[T]):
 
 ### Naming Conventions
 
-- **Classes**: `PascalCase` (e.g., `AgentConfig`, `BaseScraper`)
-- **Functions/Methods**: `snake_case` (e.g., `get_config`, `scrape_data`)
+- **Classes**: `PascalCase` (e.g., `AgentConfig`, `BaseDataSource`)
+- **Functions/Methods**: `snake_case` (e.g., `get_config`, `fetch_data`)
 - **Constants**: `SCREAMING_SNAKE_CASE` (e.g., `DEFAULT_TIMEOUT`)
 - **Private Methods/Attributes**: `_leading_underscore` (e.g., `_set_status`)
 - **Module Private**: `__dunder__` for special methods
@@ -225,7 +225,7 @@ class TestLLMConfig:
 alpha-gen/
 ├── src/alpha_gen/
 │   ├── agents/          # LangGraph agents
-│   ├── scrapers/        # Playwright scrapers
+│   ├── data_sources/    # Alpha Vantage API + Yahoo Finance scrapers
 │   ├── rag/             # Vector store & RAG
 │   ├── cli/             # Typer CLI
 │   ├── config/          # Configuration
