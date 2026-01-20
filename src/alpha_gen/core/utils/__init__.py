@@ -1,7 +1,12 @@
 """Utilities module for Alpha Gen."""
 
-from alpha_gen.utils.logging import LogContext, get_logger, log_execution, setup_logging
-from alpha_gen.utils.observability import (
+from alpha_gen.core.utils.logging import (
+    LogContext,
+    get_logger,
+    log_execution,
+    setup_logging,
+)
+from alpha_gen.core.utils.observability import (
     ObservabilityManager,
     ObservableContext,
     get_observability_manager,

@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 import structlog
 
-from alpha_gen.data_sources.base import BaseDataSource, SourceData
+from alpha_gen.core.data_sources.base import BaseDataSource, SourceData
 
 logger = structlog.get_logger(__name__)
 

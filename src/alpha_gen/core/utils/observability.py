@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from alpha_gen.config.settings import get_config
+from alpha_gen.core.config.settings import get_config
 
 
 class ObservabilityManager:

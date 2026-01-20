@@ -1,6 +1,6 @@
 """Data sources module for Alpha Gen."""
 
-from alpha_gen.data_sources.alpha_vantage import (
+from alpha_gen.core.data_sources.alpha_vantage import (
     AlphaVantageClient,
     CompanyOverview,
     NewsArticle,
@@ -9,7 +9,7 @@ from alpha_gen.data_sources.alpha_vantage import (
     fetch_news_sentiment,
     fetch_top_gainers_losers,
 )
-from alpha_gen.data_sources.base import BaseDataSource, SourceData
+from alpha_gen.core.data_sources.base import BaseDataSource, SourceData
 
 __all__ = [
     "AlphaVantageClient",

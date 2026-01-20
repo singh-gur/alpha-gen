@@ -11,8 +11,8 @@ from alpha_gen.cli.commands import (
     opportunities_app,
     research_app,
 )
-from alpha_gen.config.settings import get_config
-from alpha_gen.utils.logging import setup_logging
+from alpha_gen.core.config.settings import get_config
+from alpha_gen.core.utils.logging import setup_logging
 
 # Create main Typer app
 app = typer.Typer(

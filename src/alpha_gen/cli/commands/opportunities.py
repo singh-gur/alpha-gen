@@ -9,8 +9,8 @@ import structlog
 import typer
 from rich import print as rprint
 
-from alpha_gen.agents import find_opportunities
 from alpha_gen.cli.helpers import output_result
+from alpha_gen.core.agents import find_opportunities
 
 logger = structlog.get_logger(__name__)
 

@@ -12,8 +12,8 @@ from langchain_core.embeddings import Embeddings
 from langchain_core.vectorstores import VectorStoreRetriever
 from sentence_transformers import SentenceTransformer
 
-from alpha_gen.config.settings import get_config
-from alpha_gen.utils.logging import get_logger
+from alpha_gen.core.config.settings import get_config
+from alpha_gen.core.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

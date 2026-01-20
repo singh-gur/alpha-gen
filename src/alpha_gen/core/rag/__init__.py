@@ -1,6 +1,6 @@
 """RAG module for Alpha Gen."""
 
-from alpha_gen.rag.vector_store import (
+from alpha_gen.core.rag.vector_store import (
     DocumentProcessor,
     RetrievalResult,
     VectorStoreManager,

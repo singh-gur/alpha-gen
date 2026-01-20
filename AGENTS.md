@@ -224,17 +224,29 @@ class TestLLMConfig:
 ```
 alpha-gen/
 ├── src/alpha_gen/
-│   ├── agents/          # LangGraph agents
-│   ├── data_sources/    # Alpha Vantage API + Yahoo Finance scrapers
-│   ├── rag/             # Vector store & RAG
-│   ├── cli/             # Typer CLI
-│   ├── config/          # Configuration
-│   └── utils/           # Logging, observability
+│   ├── core/            # Core business logic (interface-agnostic)
+│   │   ├── agents/      # LangGraph agents for research, news, opportunities
+│   │   ├── data_sources/# Alpha Vantage API client and data models
+│   │   ├── rag/         # Vector store & RAG functionality
+│   │   ├── config/      # Application configuration and settings
+│   │   ├── utils/       # Logging, observability, utilities
+│   │   └── tools/       # Agent tools and utilities
+│   ├── cli/             # CLI interface (Typer)
+│   │   ├── commands/    # CLI command implementations
+│   │   ├── helpers.py   # CLI output formatting helpers
+│   │   └── main.py      # CLI entry point
+│   └── main.py          # Application entry point
 ├── tests/
 │   ├── test_*.py        # Unit tests
 │   └── *_test.py        # Integration tests
 └── pyproject.toml
 ```
+
+**Architecture Notes:**
+- **core/**: Contains all business logic, completely independent of interface
+- **cli/**: CLI-specific code (Typer commands, output formatting)
+- Future interfaces (MCP, API) will be siblings to `cli/` and import from `core/`
+- All imports from interfaces should use `from alpha_gen.core import ...`
 
 ### Key Tooling
 

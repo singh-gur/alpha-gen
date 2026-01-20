@@ -11,8 +11,8 @@ from rich import print as rprint
 from rich.panel import Panel
 from rich.table import Table
 
-from alpha_gen.agents import analyze_news, research_company
 from alpha_gen.cli.helpers import output_result
+from alpha_gen.core.agents import analyze_news, research_company
 
 logger = structlog.get_logger(__name__)
 

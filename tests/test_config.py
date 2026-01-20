@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from alpha_gen.config.settings import AppConfig, LLMConfig, get_config
+from alpha_gen.core.config.settings import AppConfig, LLMConfig, get_config
 
 
 class TestLLMConfig:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from alpha_gen.data_sources.base import BaseDataSource, SourceData
+from alpha_gen.core.data_sources.base import BaseDataSource, SourceData
 
 
 class TestSourceData:
