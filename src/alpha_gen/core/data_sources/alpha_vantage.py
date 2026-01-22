@@ -111,6 +111,10 @@ class AlphaVantageClient(BaseDataSource):
     async def _make_request(self, params: dict[str, Any]) -> SourceData:
         """Make HTTP request to Alpha Vantage API."""
         try:
+            # Add API key to params if not already present
+            if "apikey" not in params:
+                params["apikey"] = self.api_key
+
             self._logger.info(
                 "Making Alpha Vantage API request", function=params.get("function")
             )
