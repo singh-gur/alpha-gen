@@ -141,17 +141,18 @@ Please provide a comprehensive investment research report including:
         base_url=config.llm.base_url,
     )
 
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", RESEARCH_SYSTEM_PROMPT),
-            ("human", analysis_prompt),
-        ]
-    )
+    # Create messages directly with the formatted prompt
+    from langchain_core.messages import SystemMessage, HumanMessage as HumanMsg
 
-    chain = prompt | llm | StrOutputParser()
+    messages = [
+        SystemMessage(content=RESEARCH_SYSTEM_PROMPT),
+        HumanMsg(content=analysis_prompt),
+    ]
 
     try:
-        analysis = await chain.ainvoke({})
+        # Invoke LLM directly with messages
+        response = await llm.ainvoke(messages)
+        analysis = response.content
 
         return {
             **state,

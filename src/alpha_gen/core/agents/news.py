@@ -109,17 +109,18 @@ Aggregate the findings into a market sentiment overview with actionable insights
         base_url=config.llm.base_url,
     )
 
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", NEWS_SYSTEM_PROMPT),
-            ("human", analysis_prompt),
-        ]
-    )
+    # Create messages directly with the formatted prompt
+    from langchain_core.messages import SystemMessage, HumanMessage as HumanMsg
 
-    chain = prompt | llm | StrOutputParser()
+    messages = [
+        SystemMessage(content=NEWS_SYSTEM_PROMPT),
+        HumanMsg(content=analysis_prompt),
+    ]
 
     try:
-        sentiment_analysis = await chain.ainvoke({})
+        # Invoke LLM directly with messages
+        response = await llm.ainvoke(messages)
+        sentiment_analysis = response.content
 
         return {
             **state,
@@ -177,17 +178,18 @@ Focus on the most actionable opportunities with clear catalysts.
         base_url=config.llm.base_url,
     )
 
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", NEWS_SYSTEM_PROMPT),
-            ("human", opportunities_prompt),
-        ]
-    )
+    # Create messages directly with the formatted prompt
+    from langchain_core.messages import SystemMessage, HumanMessage as HumanMsg
 
-    chain = prompt | llm | StrOutputParser()
+    messages = [
+        SystemMessage(content=NEWS_SYSTEM_PROMPT),
+        HumanMsg(content=opportunities_prompt),
+    ]
 
     try:
-        opportunities = await chain.ainvoke({})
+        # Invoke LLM directly with messages
+        response = await llm.ainvoke(messages)
+        opportunities = response.content
 
         return {
             **state,

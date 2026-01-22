@@ -177,17 +177,18 @@ Format the output as a structured report.
         base_url=config.llm.base_url,
     )
 
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", OPPORTUNITIES_SYSTEM_PROMPT),
-            ("human", analysis_prompt),
-        ]
-    )
+    # Create messages directly with the formatted prompt
+    from langchain_core.messages import SystemMessage, HumanMessage
 
-    chain = prompt | llm | StrOutputParser()
+    messages = [
+        SystemMessage(content=OPPORTUNITIES_SYSTEM_PROMPT),
+        HumanMessage(content=analysis_prompt),
+    ]
 
     try:
-        analysis = await chain.ainvoke({})
+        # Invoke LLM directly with messages
+        response = await llm.ainvoke(messages)
+        analysis = response.content
 
         return {
             **state,
