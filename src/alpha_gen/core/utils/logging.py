@@ -7,6 +7,7 @@ import sys
 from typing import Any
 
 import structlog
+from langfuse.langchain import CallbackHandler
 
 
 def setup_logging(
@@ -82,6 +83,49 @@ class LogContext:
 
     def __exit__(self, *args: Any) -> None:
         pass
+
+
+def get_langfuse_handler() -> CallbackHandler | None:
+    """Get Langfuse callback handler if configured.
+
+    Returns:
+        CallbackHandler instance if Langfuse is enabled and configured, None otherwise
+    """
+    import os
+
+    from alpha_gen.core.config.settings import get_config
+
+    config = get_config()
+
+    if not config.observability.enabled or not config.observability.is_configured:
+        return None
+
+    try:
+        # Set environment variables for Langfuse
+        os.environ["LANGFUSE_PUBLIC_KEY"] = config.observability.public_key or ""
+        os.environ["LANGFUSE_SECRET_KEY"] = config.observability.secret_key or ""
+        os.environ["LANGFUSE_HOST"] = config.observability.host
+
+        handler = CallbackHandler()
+        return handler
+    except Exception as e:
+        get_logger(__name__).warning(
+            "Failed to initialize Langfuse handler", error=str(e)
+        )
+        return None
+
+    try:
+        handler = CallbackHandler(
+            public_key=config.observability.public_key,
+            secret_key=config.observability.secret_key,
+            host=config.observability.host,
+        )
+        return handler
+    except Exception as e:
+        get_logger(__name__).warning(
+            "Failed to initialize Langfuse handler", error=str(e)
+        )
+        return None
 
 
 def log_execution(

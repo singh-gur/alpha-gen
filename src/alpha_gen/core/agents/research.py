@@ -16,7 +16,7 @@ from alpha_gen.core.data_sources.alpha_vantage import (
     fetch_news_sentiment,
 )
 from alpha_gen.core.rag import DocumentProcessor, get_vector_store_manager
-from alpha_gen.core.utils.logging import get_logger
+from alpha_gen.core.utils.logging import get_langfuse_handler, get_logger
 
 logger = get_logger(__name__)
 
@@ -206,6 +206,11 @@ Note: Use the historical context above to compare with similar companies and ide
 """
 
     config = get_config()
+
+    # Get Langfuse callback handler
+    langfuse_handler = get_langfuse_handler()
+    callbacks = [langfuse_handler] if langfuse_handler else []
+
     llm = ChatOpenAI(
         model=config.llm.model_name,
         temperature=config.llm.temperature,
@@ -223,8 +228,8 @@ Note: Use the historical context above to compare with similar companies and ide
     ]
 
     try:
-        # Invoke LLM directly with messages
-        response = await llm.ainvoke(messages)
+        # Invoke LLM directly with messages and Langfuse callback
+        response = await llm.ainvoke(messages, config={"callbacks": callbacks})  # type: ignore[arg-type]
         analysis = response.content
 
         return {

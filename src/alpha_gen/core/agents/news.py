@@ -13,7 +13,7 @@ from alpha_gen.core.agents.base import AgentConfig, AgentState, BaseAgent
 from alpha_gen.core.config.settings import get_config
 from alpha_gen.core.data_sources.alpha_vantage import fetch_news_sentiment
 from alpha_gen.core.rag import DocumentProcessor, get_vector_store_manager
-from alpha_gen.core.utils.logging import get_logger
+from alpha_gen.core.utils.logging import get_langfuse_handler, get_logger
 
 logger = get_logger(__name__)
 
@@ -148,6 +148,11 @@ Aggregate the findings into a market sentiment overview with actionable insights
 """
 
     config = get_config()
+
+    # Get Langfuse callback handler
+    langfuse_handler = get_langfuse_handler()
+    callbacks = [langfuse_handler] if langfuse_handler else []
+
     llm = ChatOpenAI(
         model=config.llm.model_name,
         temperature=config.llm.temperature,
@@ -165,8 +170,8 @@ Aggregate the findings into a market sentiment overview with actionable insights
     ]
 
     try:
-        # Invoke LLM directly with messages
-        response = await llm.ainvoke(messages)
+        # Invoke LLM directly with messages and Langfuse callback
+        response = await llm.ainvoke(messages, config={"callbacks": callbacks})  # type: ignore[arg-type]
         sentiment_analysis = response.content
 
         return {
@@ -218,6 +223,11 @@ Focus on the most actionable opportunities with clear catalysts.
 """
 
     config = get_config()
+
+    # Get Langfuse callback handler
+    langfuse_handler = get_langfuse_handler()
+    callbacks = [langfuse_handler] if langfuse_handler else []
+
     llm = ChatOpenAI(
         model=config.llm.model_name,
         temperature=config.llm.temperature,
@@ -235,8 +245,8 @@ Focus on the most actionable opportunities with clear catalysts.
     ]
 
     try:
-        # Invoke LLM directly with messages
-        response = await llm.ainvoke(messages)
+        # Invoke LLM directly with messages and Langfuse callback
+        response = await llm.ainvoke(messages, config={"callbacks": callbacks})  # type: ignore[arg-type]
         opportunities = response.content
 
         return {
