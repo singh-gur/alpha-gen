@@ -5,8 +5,8 @@ set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 set dotenv-load := true
 
 # Docker image configuration
-IMAGE := env_var_or_default("DOCKER_IMAGE", "alpha-gen")
-REGISTRY := env_var_or_default("DOCKER_REGISTRY", "")
+IMAGE := env("DOCKER_IMAGE", "alpha-gen")
+REGISTRY := env("DOCKER_REGISTRY", "")
 TAG := `git describe --tags --exact-match 2>/dev/null || git rev-parse --short HEAD`
 BRANCH := `git rev-parse --abbrev-ref HEAD | tr '/' '-'`
 

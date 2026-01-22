@@ -1,4 +1,4 @@
-    """Alpha Gen - AI-powered investment research assistant."""
+"""Alpha Gen - AI-powered investment research assistant."""
 
 __version__ = "0.1.0"
 

@@ -45,8 +45,8 @@ WORKDIR /home/appuser
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import alpha_gen; import sys; sys.exit(0)"
 
-# Default command
-CMD ["python", "-m", "alpha_gen.cli.main", "--help"]
+# Default command - uses the installed CLI entrypoint
+CMD ["alpha-gen", "--help"]
 
 # Metadata
 LABEL org.opencontainers.image.title="Alpha Gen" \
