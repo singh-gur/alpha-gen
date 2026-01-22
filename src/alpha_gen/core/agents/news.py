@@ -102,6 +102,7 @@ Aggregate the findings into a market sentiment overview with actionable insights
         model=config.llm.model_name,
         temperature=config.llm.temperature,
         api_key=config.llm.api_key,  # type: ignore[arg-type]
+        base_url=config.llm.base_url,
     )
 
     prompt = ChatPromptTemplate.from_messages(
@@ -165,6 +166,7 @@ Focus on the most actionable opportunities with clear catalysts.
         model=config.llm.model_name,
         temperature=config.llm.temperature,
         api_key=config.llm.api_key,  # type: ignore[arg-type]
+        base_url=config.llm.base_url,
     )
 
     prompt = ChatPromptTemplate.from_messages(

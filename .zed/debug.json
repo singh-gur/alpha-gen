@@ -1,0 +1,15 @@
+// Project-local debug tasks
+//
+// For more documentation on how to configure debug tasks,
+// see: https://zed.dev/docs/debugger
+[
+  {
+    "name": "Run Research",
+    "label": "run_research",
+    "adapter": "Debugpy",
+    "request": "launch",
+    "program": "src/alpha_gen/cli/main.py",
+    "console": "integratedTerminal",
+    "args": ["research", "AAPL"],
+  },
+]

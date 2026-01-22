@@ -9,7 +9,11 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
+from dotenv import load_dotenv
 from pydantic import BaseModel, Field, validator
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class LLMConfig(BaseModel):

@@ -166,6 +166,7 @@ Format the output as a structured report.
         model=config.llm.model_name,
         temperature=config.llm.temperature,
         api_key=config.llm.api_key,  # type: ignore[arg-type]
+        base_url=config.llm.base_url,
     )
 
     prompt = ChatPromptTemplate.from_messages(
