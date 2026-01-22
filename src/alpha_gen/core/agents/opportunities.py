@@ -6,8 +6,6 @@ import time
 from typing import Any
 
 from langchain_core.messages import HumanMessage
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph
 
@@ -17,6 +15,7 @@ from alpha_gen.core.data_sources.alpha_vantage import (
     AlphaVantageClient,
     fetch_company_overview,
 )
+from alpha_gen.core.rag import DocumentProcessor, get_vector_store_manager
 from alpha_gen.core.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -135,7 +134,7 @@ async def fetch_detailed_data_node(state: AgentState) -> AgentState:
 
 
 async def identify_opportunities_node(state: AgentState) -> AgentState:
-    """Analyze data to identify investment opportunities."""
+    """Analyze data to identify investment opportunities with RAG enhancement."""
     # Check if there was an error in previous step
     if state.get("error_message"):
         return state
@@ -144,6 +143,51 @@ async def identify_opportunities_node(state: AgentState) -> AgentState:
     losers_data = context.get("losers_data", [])
     detailed_data = context.get("detailed_data", {})
 
+    # Initialize RAG components
+    vector_store = get_vector_store_manager()
+    doc_processor = DocumentProcessor(chunk_size=500, chunk_overlap=100)
+
+    # Store loser data in vector store
+    try:
+        for ticker, data in detailed_data.items():
+            if data.get("Description"):
+                docs = doc_processor.process(
+                    content=data["Description"],
+                    source=f"loser_analysis_{ticker}",
+                    metadata={
+                        "ticker": ticker,
+                        "type": "loser_opportunity",
+                        "sector": data.get("Sector", ""),
+                        "industry": data.get("Industry", ""),
+                    },
+                )
+                vector_store.add_documents(
+                    texts=[doc.page_content for doc in docs],
+                    metadatas=[doc.metadata for doc in docs],
+                )
+        logger.info("Stored loser data in vector store", count=len(detailed_data))
+    except Exception as e:
+        logger.warning("Failed to store loser data", error=str(e))
+
+    # Retrieve similar recovery patterns
+    rag_context = ""
+    try:
+        query = "Companies that recovered from significant losses and became good investments"
+        similar_docs = vector_store.similarity_search(
+            query=query,
+            k=3,
+            metadata_filter={"type": "loser_opportunity"},
+        )
+
+        if similar_docs:
+            rag_context = "\n\nHistorical Recovery Patterns:\n"
+            for i, doc in enumerate(similar_docs, 1):
+                rag_context += f"\n{i}. {doc.metadata.get('ticker', 'Unknown')}: {doc.content[:150]}...\n"
+
+            logger.info("Retrieved recovery patterns", docs_found=len(similar_docs))
+    except Exception as e:
+        logger.warning("Failed to retrieve recovery patterns", error=str(e))
+
     analysis_prompt = f"""Analyze the following market data to identify investment opportunities:
 
 Losers List Data:
@@ -151,8 +195,9 @@ Losers List Data:
 
 Detailed Analysis for Top Losers:
 {str(detailed_data)[:3000]}
+{rag_context}
 
-Based on this data, identify the most promising investment opportunities.
+Based on this data and historical recovery patterns, identify the most promising investment opportunities.
 Focus on companies that:
 1. Have strong fundamentals but are oversold
 2. Have positive news catalysts or recovery potential
@@ -178,7 +223,7 @@ Format the output as a structured report.
     )
 
     # Create messages directly with the formatted prompt
-    from langchain_core.messages import SystemMessage, HumanMessage
+    from langchain_core.messages import SystemMessage
 
     messages = [
         SystemMessage(content=OPPORTUNITIES_SYSTEM_PROMPT),
@@ -301,13 +346,6 @@ class OpportunitiesAgent(BaseAgent):
                 "losers_data": result.get("context", {}).get("losers_data", []),
                 "analysis": result.get("result"),
                 "duration_ms": duration_ms,
-            }
-
-        except Exception as e:
-            logger.error("Opportunities analysis failed", error=str(e))
-            return {
-                "status": "error",
-                "error": str(e),
             }
 
         except Exception as e:

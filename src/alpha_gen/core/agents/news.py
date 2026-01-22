@@ -6,14 +6,13 @@ import time
 from typing import Any
 
 from langchain_core.messages import HumanMessage
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph
 
 from alpha_gen.core.agents.base import AgentConfig, AgentState, BaseAgent
 from alpha_gen.core.config.settings import get_config
 from alpha_gen.core.data_sources.alpha_vantage import fetch_news_sentiment
+from alpha_gen.core.rag import DocumentProcessor, get_vector_store_manager
 from alpha_gen.core.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -80,7 +79,7 @@ async def fetch_market_news_node(state: AgentState) -> AgentState:
 
 
 async def analyze_sentiment_node(state: AgentState) -> AgentState:
-    """Analyze sentiment of collected news."""
+    """Analyze sentiment of collected news with RAG enhancement."""
     # Check if there was an error in previous step
     if state.get("error_message"):
         return state
@@ -88,9 +87,56 @@ async def analyze_sentiment_node(state: AgentState) -> AgentState:
     news_data = state["context"].get("news_data", {})
     feed = news_data.get("feed", [])[:20]  # Top 20 articles
 
+    # Initialize RAG components
+    vector_store = get_vector_store_manager()
+    doc_processor = DocumentProcessor(chunk_size=500, chunk_overlap=100)
+
+    # Store news articles in vector store
+    try:
+        for article in feed:
+            if article.get("summary"):
+                docs = doc_processor.process(
+                    content=article["summary"],
+                    source=f"market_news_{article.get('time_published', '')}",
+                    metadata={
+                        "type": "market_news",
+                        "title": article.get("title", ""),
+                        "source": article.get("source", ""),
+                        "sentiment": article.get("overall_sentiment_label", ""),
+                        "topics": str(article.get("topics", [])),
+                    },
+                )
+                vector_store.add_documents(
+                    texts=[doc.page_content for doc in docs],
+                    metadatas=[doc.metadata for doc in docs],
+                )
+        logger.info("Stored news articles in vector store", count=len(feed))
+    except Exception as e:
+        logger.warning("Failed to store news articles", error=str(e))
+
+    # Retrieve similar news patterns
+    rag_context = ""
+    try:
+        query = "Market news with positive sentiment and investment opportunities"
+        similar_docs = vector_store.similarity_search(
+            query=query,
+            k=5,
+            metadata_filter={"type": "market_news"},
+        )
+
+        if similar_docs:
+            rag_context = "\n\nSimilar Historical News Patterns:\n"
+            for i, doc in enumerate(similar_docs, 1):
+                rag_context += f"\n{i}. {doc.metadata.get('title', 'Unknown')} ({doc.metadata.get('sentiment', '')}): {doc.content[:150]}...\n"
+
+            logger.info("Retrieved similar news patterns", docs_found=len(similar_docs))
+    except Exception as e:
+        logger.warning("Failed to retrieve news patterns", error=str(e))
+
     analysis_prompt = f"""Analyze the sentiment and investment implications of the following news articles:
 
 {str(feed)[:5000]}
+{rag_context}
 
 For each company mentioned, provide:
 1. Overall sentiment (positive/negative/neutral) based on sentiment scores
@@ -110,7 +156,8 @@ Aggregate the findings into a market sentiment overview with actionable insights
     )
 
     # Create messages directly with the formatted prompt
-    from langchain_core.messages import SystemMessage, HumanMessage as HumanMsg
+    from langchain_core.messages import HumanMessage as HumanMsg
+    from langchain_core.messages import SystemMessage
 
     messages = [
         SystemMessage(content=NEWS_SYSTEM_PROMPT),
@@ -179,7 +226,8 @@ Focus on the most actionable opportunities with clear catalysts.
     )
 
     # Create messages directly with the formatted prompt
-    from langchain_core.messages import SystemMessage, HumanMessage as HumanMsg
+    from langchain_core.messages import HumanMessage as HumanMsg
+    from langchain_core.messages import SystemMessage
 
     messages = [
         SystemMessage(content=NEWS_SYSTEM_PROMPT),
@@ -299,13 +347,6 @@ class NewsAgent(BaseAgent):
                 "status": "success",
                 "analysis": result.get("result"),
                 "duration_ms": duration_ms,
-            }
-
-        except Exception as e:
-            logger.error("News analysis failed", error=str(e))
-            return {
-                "status": "error",
-                "error": str(e),
             }
 
         except Exception as e:

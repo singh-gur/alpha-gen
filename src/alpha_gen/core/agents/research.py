@@ -6,8 +6,6 @@ import time
 from typing import Any
 
 from langchain_core.messages import HumanMessage
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph
 
@@ -17,6 +15,7 @@ from alpha_gen.core.data_sources.alpha_vantage import (
     fetch_company_overview,
     fetch_news_sentiment,
 )
+from alpha_gen.core.rag import DocumentProcessor, get_vector_store_manager
 from alpha_gen.core.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -93,7 +92,7 @@ async def fetch_company_data_node(state: AgentState) -> AgentState:
 
 
 async def analyze_data_node(state: AgentState) -> AgentState:
-    """Analyze the company data from Alpha Vantage."""
+    """Analyze the company data from Alpha Vantage with RAG enhancement."""
     # Check if there was an error in previous step
     if state.get("error_message"):
         return state
@@ -103,7 +102,77 @@ async def analyze_data_node(state: AgentState) -> AgentState:
     news_sentiment = context.get("news_sentiment", {})
     ticker = context.get("ticker", "")
 
-    # Build a comprehensive analysis prompt
+    # Initialize RAG components
+    vector_store = get_vector_store_manager()
+    doc_processor = DocumentProcessor(chunk_size=500, chunk_overlap=100)
+
+    # Store current company data in vector store for future retrieval
+    try:
+        company_description = overview.get("Description", "")
+        if company_description:
+            docs = doc_processor.process(
+                content=company_description,
+                source=f"company_overview_{ticker}",
+                metadata={
+                    "ticker": ticker,
+                    "type": "company_overview",
+                    "sector": overview.get("Sector", ""),
+                    "industry": overview.get("Industry", ""),
+                },
+            )
+            vector_store.add_documents(
+                texts=[doc.page_content for doc in docs],
+                metadatas=[doc.metadata for doc in docs],
+            )
+
+        # Store news articles in vector store
+        news_feed = news_sentiment.get("feed", [])
+        for article in news_feed[:10]:  # Store top 10 news articles
+            if article.get("summary"):
+                news_docs = doc_processor.process(
+                    content=article["summary"],
+                    source=f"news_{ticker}_{article.get('time_published', '')}",
+                    metadata={
+                        "ticker": ticker,
+                        "type": "news",
+                        "title": article.get("title", ""),
+                        "source": article.get("source", ""),
+                        "sentiment": article.get("overall_sentiment_label", ""),
+                    },
+                )
+                vector_store.add_documents(
+                    texts=[doc.page_content for doc in news_docs],
+                    metadatas=[doc.metadata for doc in news_docs],
+                )
+
+        logger.info("Stored company data in vector store", ticker=ticker)
+    except Exception as e:
+        logger.warning("Failed to store data in vector store", error=str(e))
+
+    # Retrieve relevant historical context
+    rag_context = ""
+    try:
+        query = (
+            f"Investment analysis for {ticker} in {overview.get('Sector', '')} sector"
+        )
+        similar_docs = vector_store.similarity_search(
+            query=query,
+            k=5,
+            metadata_filter={"type": "company_overview"},
+        )
+
+        if similar_docs:
+            rag_context = "\n\nRelevant Historical Context:\n"
+            for i, doc in enumerate(similar_docs, 1):
+                rag_context += f"\n{i}. {doc.metadata.get('ticker', 'Unknown')} ({doc.metadata.get('sector', '')}): {doc.content[:200]}...\n"
+
+            logger.info(
+                "Retrieved RAG context", ticker=ticker, docs_found=len(similar_docs)
+            )
+    except Exception as e:
+        logger.warning("Failed to retrieve RAG context", error=str(e))
+
+    # Build a comprehensive analysis prompt with RAG context
     analysis_prompt = f"""Analyze the following company data for {ticker}:
 
 Company Overview:
@@ -124,6 +193,7 @@ Description:
 
 Recent News & Sentiment:
 {str(news_sentiment.get("feed", [])[:10])[:3000]}
+{rag_context}
 
 Please provide a comprehensive investment research report including:
 1. Company overview and business model
@@ -131,6 +201,8 @@ Please provide a comprehensive investment research report including:
 3. Valuation analysis
 4. News sentiment and market perception
 5. Investment recommendation with confidence level
+
+Note: Use the historical context above to compare with similar companies and identify patterns.
 """
 
     config = get_config()
@@ -142,7 +214,8 @@ Please provide a comprehensive investment research report including:
     )
 
     # Create messages directly with the formatted prompt
-    from langchain_core.messages import SystemMessage, HumanMessage as HumanMsg
+    from langchain_core.messages import HumanMessage as HumanMsg
+    from langchain_core.messages import SystemMessage
 
     messages = [
         SystemMessage(content=RESEARCH_SYSTEM_PROMPT),
