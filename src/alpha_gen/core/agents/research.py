@@ -162,7 +162,7 @@ Please provide a comprehensive investment research report including:
         }
 
 
-def create_research_workflow() -> StateGraph:
+def create_research_workflow() -> Any:
     """Create the research agent workflow."""
     workflow = StateGraph(AgentState)
 
@@ -171,9 +171,9 @@ def create_research_workflow() -> StateGraph:
 
     workflow.set_entry_point("fetch_data")
     workflow.add_edge("fetch_data", "analyze")
-    workflow.add_edge("analyze", "final")
+    workflow.set_finish_point("analyze")
 
-    return workflow
+    return workflow.compile()
 
 
 class ResearchAgent(BaseAgent):
@@ -183,7 +183,7 @@ class ResearchAgent(BaseAgent):
         super().__init__("research_agent", config)
         self._workflow = create_research_workflow()
 
-    def create_workflow(self) -> StateGraph:
+    def create_workflow(self) -> Any:
         """Create the agent workflow graph."""
         return self._workflow
 
@@ -207,7 +207,7 @@ class ResearchAgent(BaseAgent):
         try:
             start_time = time.time()
 
-            result = await self._workflow.ainvoke(initial_state)  # type: ignore[attr-defined]
+            result = await self._workflow.ainvoke(initial_state)
 
             duration_ms = (time.time() - start_time) * 1000
 

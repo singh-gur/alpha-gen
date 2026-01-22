@@ -193,20 +193,20 @@ Focus on the most actionable opportunities with clear catalysts.
         }
 
 
-def create_news_workflow() -> StateGraph:
+def create_news_workflow() -> Any:
     """Create the news agent workflow."""
     workflow = StateGraph(AgentState)
 
-    workflow.add_node("fetch_news", fetch_market_news_node)
+    workflow.add_node("fetch_news", fetch_news_node)
     workflow.add_node("analyze_sentiment", analyze_sentiment_node)
     workflow.add_node("identify", identify_opportunities_node)
 
     workflow.set_entry_point("fetch_news")
     workflow.add_edge("fetch_news", "analyze_sentiment")
     workflow.add_edge("analyze_sentiment", "identify")
-    workflow.add_edge("identify", "final")
+    workflow.set_finish_point("identify")
 
-    return workflow
+    return workflow.compile()
 
 
 class NewsAgent(BaseAgent):
@@ -216,7 +216,7 @@ class NewsAgent(BaseAgent):
         super().__init__("news_agent", config)
         self._workflow = create_news_workflow()
 
-    def create_workflow(self) -> StateGraph:
+    def create_workflow(self) -> Any:
         """Create the agent workflow graph."""
         return self._workflow
 
@@ -240,7 +240,7 @@ class NewsAgent(BaseAgent):
         try:
             start_time = time.time()
 
-            result = await self._workflow.ainvoke(initial_state)  # type: ignore[attr-defined]
+            result = await self._workflow.ainvoke(initial_state)
 
             duration_ms = (time.time() - start_time) * 1000
 

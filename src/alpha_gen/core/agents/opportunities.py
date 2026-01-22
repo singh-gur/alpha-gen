@@ -194,7 +194,7 @@ Format the output as a structured report.
         }
 
 
-def create_opportunities_workflow() -> StateGraph:
+def create_opportunities_workflow() -> Any:
     """Create the opportunities agent workflow."""
     workflow = StateGraph(AgentState)
 
@@ -205,9 +205,9 @@ def create_opportunities_workflow() -> StateGraph:
     workflow.set_entry_point("fetch_losers")
     workflow.add_edge("fetch_losers", "fetch_detailed")
     workflow.add_edge("fetch_detailed", "identify")
-    workflow.add_edge("identify", "final")
+    workflow.set_finish_point("identify")
 
-    return workflow
+    return workflow.compile()
 
 
 class OpportunitiesAgent(BaseAgent):
@@ -217,7 +217,7 @@ class OpportunitiesAgent(BaseAgent):
         super().__init__("opportunities_agent", config)
         self._workflow = create_opportunities_workflow()
 
-    def create_workflow(self) -> StateGraph:
+    def create_workflow(self) -> Any:
         """Create the agent workflow graph."""
         return self._workflow
 
@@ -243,7 +243,7 @@ class OpportunitiesAgent(BaseAgent):
         try:
             start_time = time.time()
 
-            result = await self._workflow.ainvoke(initial_state)  # type: ignore[attr-defined]
+            result = await self._workflow.ainvoke(initial_state)
 
             duration_ms = (time.time() - start_time) * 1000
 
