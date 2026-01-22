@@ -81,6 +81,10 @@ async def fetch_market_news_node(state: AgentState) -> AgentState:
 
 async def analyze_sentiment_node(state: AgentState) -> AgentState:
     """Analyze sentiment of collected news."""
+    # Check if there was an error in previous step
+    if state.get("error_message"):
+        return state
+
     news_data = state["context"].get("news_data", {})
     feed = news_data.get("feed", [])[:20]  # Top 20 articles
 
@@ -136,6 +140,10 @@ Aggregate the findings into a market sentiment overview with actionable insights
 
 async def identify_opportunities_node(state: AgentState) -> AgentState:
     """Identify specific investment opportunities from news."""
+    # Check if there was an error in previous step
+    if state.get("error_message"):
+        return state
+
     sentiment = state["context"].get("sentiment_analysis", "")
     news_data = state["context"].get("news_data", {})
     feed = news_data.get("feed", [])[:15]
@@ -195,17 +203,40 @@ Focus on the most actionable opportunities with clear catalysts.
         }
 
 
+def should_continue(state: AgentState) -> str:
+    """Determine if workflow should continue or terminate due to error."""
+    if state.get("error_message"):
+        return "end"
+    return "continue"
+
+
 def create_news_workflow() -> Any:
     """Create the news agent workflow."""
     workflow = StateGraph(AgentState)
 
-    workflow.add_node("fetch_news", fetch_news_node)
+    workflow.add_node("fetch_news", fetch_market_news_node)
     workflow.add_node("analyze_sentiment", analyze_sentiment_node)
     workflow.add_node("identify", identify_opportunities_node)
 
     workflow.set_entry_point("fetch_news")
-    workflow.add_edge("fetch_news", "analyze_sentiment")
-    workflow.add_edge("analyze_sentiment", "identify")
+
+    # Add conditional edges that check for errors
+    workflow.add_conditional_edges(
+        "fetch_news",
+        should_continue,
+        {
+            "continue": "analyze_sentiment",
+            "end": "__end__",
+        },
+    )
+    workflow.add_conditional_edges(
+        "analyze_sentiment",
+        should_continue,
+        {
+            "continue": "identify",
+            "end": "__end__",
+        },
+    )
     workflow.set_finish_point("identify")
 
     return workflow.compile()
@@ -246,6 +277,17 @@ class NewsAgent(BaseAgent):
 
             duration_ms = (time.time() - start_time) * 1000
 
+            # Check if workflow ended with an error
+            if result.get("error_message"):
+                logger.error(
+                    "News analysis failed",
+                    error=result.get("error_message"),
+                )
+                return {
+                    "status": "error",
+                    "error": result.get("error_message"),
+                }
+
             logger.info(
                 "News analysis completed",
                 duration_ms=duration_ms,
@@ -254,8 +296,14 @@ class NewsAgent(BaseAgent):
             return {
                 "status": "success",
                 "analysis": result.get("result"),
-                "sentiment": result.get("context", {}).get("sentiment_analysis"),
                 "duration_ms": duration_ms,
+            }
+
+        except Exception as e:
+            logger.error("News analysis failed", error=str(e))
+            return {
+                "status": "error",
+                "error": str(e),
             }
 
         except Exception as e:

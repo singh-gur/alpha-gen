@@ -94,6 +94,10 @@ async def fetch_company_data_node(state: AgentState) -> AgentState:
 
 async def analyze_data_node(state: AgentState) -> AgentState:
     """Analyze the company data from Alpha Vantage."""
+    # Check if there was an error in previous step
+    if state.get("error_message"):
+        return state
+
     context = state["context"]
     overview = context.get("company_overview", {})
     news_sentiment = context.get("news_sentiment", {})
@@ -163,6 +167,13 @@ Please provide a comprehensive investment research report including:
         }
 
 
+def should_continue(state: AgentState) -> str:
+    """Determine if workflow should continue or terminate due to error."""
+    if state.get("error_message"):
+        return "end"
+    return "continue"
+
+
 def create_research_workflow() -> Any:
     """Create the research agent workflow."""
     workflow = StateGraph(AgentState)
@@ -171,7 +182,16 @@ def create_research_workflow() -> Any:
     workflow.add_node("analyze", analyze_data_node)
 
     workflow.set_entry_point("fetch_data")
-    workflow.add_edge("fetch_data", "analyze")
+
+    # Add conditional edge that checks for errors
+    workflow.add_conditional_edges(
+        "fetch_data",
+        should_continue,
+        {
+            "continue": "analyze",
+            "end": "__end__",
+        },
+    )
     workflow.set_finish_point("analyze")
 
     return workflow.compile()
@@ -211,6 +231,18 @@ class ResearchAgent(BaseAgent):
             result = await self._workflow.ainvoke(initial_state)
 
             duration_ms = (time.time() - start_time) * 1000
+
+            # Check if workflow ended with an error
+            if result.get("error_message"):
+                logger.error(
+                    "Research failed",
+                    ticker=input_data.get("ticker"),
+                    error=result.get("error_message"),
+                )
+                return {
+                    "status": "error",
+                    "error": result.get("error_message"),
+                }
 
             logger.info(
                 "Research completed",

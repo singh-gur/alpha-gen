@@ -91,6 +91,10 @@ async def fetch_losers_node(state: AgentState) -> AgentState:
 
 async def fetch_detailed_data_node(state: AgentState) -> AgentState:
     """Fetch detailed company overview data for top losers."""
+    # Check if there was an error in previous step
+    if state.get("error_message"):
+        return state
+
     losers = state["context"].get("losers_data", [])
     tickers_to_analyze = [loser["ticker"] for loser in losers[:5]]  # Top 5 losers
 
@@ -132,6 +136,10 @@ async def fetch_detailed_data_node(state: AgentState) -> AgentState:
 
 async def identify_opportunities_node(state: AgentState) -> AgentState:
     """Analyze data to identify investment opportunities."""
+    # Check if there was an error in previous step
+    if state.get("error_message"):
+        return state
+
     context = state["context"]
     losers_data = context.get("losers_data", [])
     detailed_data = context.get("detailed_data", {})
@@ -195,6 +203,13 @@ Format the output as a structured report.
         }
 
 
+def should_continue(state: AgentState) -> str:
+    """Determine if workflow should continue or terminate due to error."""
+    if state.get("error_message"):
+        return "end"
+    return "continue"
+
+
 def create_opportunities_workflow() -> Any:
     """Create the opportunities agent workflow."""
     workflow = StateGraph(AgentState)
@@ -204,8 +219,24 @@ def create_opportunities_workflow() -> Any:
     workflow.add_node("identify", identify_opportunities_node)
 
     workflow.set_entry_point("fetch_losers")
-    workflow.add_edge("fetch_losers", "fetch_detailed")
-    workflow.add_edge("fetch_detailed", "identify")
+
+    # Add conditional edges that check for errors
+    workflow.add_conditional_edges(
+        "fetch_losers",
+        should_continue,
+        {
+            "continue": "fetch_detailed",
+            "end": "__end__",
+        },
+    )
+    workflow.add_conditional_edges(
+        "fetch_detailed",
+        should_continue,
+        {
+            "continue": "identify",
+            "end": "__end__",
+        },
+    )
     workflow.set_finish_point("identify")
 
     return workflow.compile()
@@ -248,17 +279,34 @@ class OpportunitiesAgent(BaseAgent):
 
             duration_ms = (time.time() - start_time) * 1000
 
+            # Check if workflow ended with an error
+            if result.get("error_message"):
+                logger.error(
+                    "Opportunities analysis failed",
+                    error=result.get("error_message"),
+                )
+                return {
+                    "status": "error",
+                    "error": result.get("error_message"),
+                }
+
             logger.info(
                 "Opportunities analysis completed",
-                limit=input_data.get("limit", 25),
                 duration_ms=duration_ms,
             )
 
             return {
                 "status": "success",
+                "losers_data": result.get("context", {}).get("losers_data", []),
                 "analysis": result.get("result"),
-                "losers_data": result.get("context", {}).get("losers_data"),
                 "duration_ms": duration_ms,
+            }
+
+        except Exception as e:
+            logger.error("Opportunities analysis failed", error=str(e))
+            return {
+                "status": "error",
+                "error": str(e),
             }
 
         except Exception as e:
