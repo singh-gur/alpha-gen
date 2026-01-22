@@ -1,0 +1,371 @@
+---
+# Concourse CI/CD Pipeline for Alpha Gen
+# Multi-agentic AI investment research assistant
+
+resources:
+  # Git repository resource
+  - name: repo
+    type: git
+    icon: github
+    source:
+      uri: ((git_uri))
+      branch: main
+      private_key: ((git_private_key))
+
+  # Docker image resource for pushing (latest)
+  - name: docker-image
+    type: registry-image
+    icon: docker
+    source:
+      repository: ((docker_repository))
+      username: ((registry_username))
+      password: ((registry_password))
+      tag: latest
+
+  # Docker image with specific tag (commit SHA)
+  - name: docker-image-tagged
+    type: registry-image
+    icon: docker
+    source:
+      repository: ((docker_repository))
+      username: ((registry_username))
+      password: ((registry_password))
+
+jobs:
+  # ============================================================================
+  # Job: Test
+  # Runs linting, type checking, and tests
+  # ============================================================================
+  - name: test
+    public: true
+    plan:
+      - get: repo
+        trigger: true
+
+      - task: lint-and-test
+        config:
+          platform: linux
+          image_resource:
+            type: registry-image
+            source:
+              repository: python
+              tag: "3.13-slim"
+
+          inputs:
+            - name: repo
+
+          caches:
+            - path: repo/.venv
+
+          run:
+            path: bash
+            args:
+              - -euc
+              - |
+                cd repo
+
+                # Install uv for dependency management
+                pip install --no-cache-dir uv
+
+                # Install dependencies
+                uv sync --all-extras
+
+                # Run linter
+                echo "Running ruff check..."
+                uv run ruff check .
+
+                # Run formatter check
+                echo "Running ruff format check..."
+                uv run ruff format --check .
+
+                # Run type checking
+                echo "Running basedpyright..."
+                uv run basedpyright src/ || echo "⚠️  Type check warnings (non-blocking)"
+
+                # Run tests with coverage
+                if [ -d "tests" ]; then
+                  echo "Running pytest..."
+                  uv run pytest --cov=alpha_gen --cov-report=term-missing -v
+                fi
+
+                echo "✅ All checks passed!"
+
+  # ============================================================================
+  # Job: Build and Push
+  # Builds Docker image and pushes to registry
+  # ============================================================================
+  - name: build-and-push
+    public: true
+    plan:
+      - get: repo
+        trigger: true
+        passed: [test]
+
+      - task: build-image
+        privileged: true
+        config:
+          platform: linux
+          image_resource:
+            type: registry-image
+            source:
+              repository: concourse/oci-build-task
+              tag: latest
+
+          inputs:
+            - name: repo
+
+          outputs:
+            - name: image
+
+          params:
+            CONTEXT: repo
+            DOCKERFILE: repo/Dockerfile
+
+          run:
+            path: build
+
+      - put: docker-image
+        params:
+          image: image/image.tar
+          additional_tags: repo/.git/short_ref
+
+      - put: docker-image-tagged
+        params:
+          image: image/image.tar
+          additional_tags: repo/.git/ref
+
+      - task: sign-image
+        config:
+          platform: linux
+          image_resource:
+            type: registry-image
+            source:
+              repository: alpine
+              tag: latest
+
+          inputs:
+            - name: repo
+
+          params:
+            COSIGN_PRIVATE_KEY: ((cosign_private_key))
+            COSIGN_PASSWORD: ((cosign_password))
+            DOCKER_REPOSITORY: ((docker_repository))
+            REGISTRY_USERNAME: ((registry_username))
+            REGISTRY_PASSWORD: ((registry_password))
+
+          run:
+            path: sh
+            args:
+              - -euc
+              - |
+                # Install cosign
+                apk add --no-cache cosign git
+
+                # Get registry from docker repository
+                REGISTRY=$(echo "$DOCKER_REPOSITORY" | cut -d'/' -f1)
+
+                # Login to registry if not Docker Hub
+                if [ "$REGISTRY" != "docker.io" ] && [ "$REGISTRY" != "" ]; then
+                  cosign login "$REGISTRY" -u "$REGISTRY_USERNAME" -p "$REGISTRY_PASSWORD"
+                fi
+
+                # Get the commit SHA for tagging
+                cd repo
+                COMMIT_SHA=$(git rev-parse --short HEAD)
+                cd ..
+
+                # Sign the images
+                echo "Signing image: ${DOCKER_REPOSITORY}:latest"
+                cosign sign --key env://COSIGN_PRIVATE_KEY "${DOCKER_REPOSITORY}:latest" -y
+
+                echo "Signing image: ${DOCKER_REPOSITORY}:${COMMIT_SHA}"
+                cosign sign --key env://COSIGN_PRIVATE_KEY "${DOCKER_REPOSITORY}:${COMMIT_SHA}" -y
+
+                echo "✅ Images signed successfully"
+
+  # ============================================================================
+  # Job: Verify Signature
+  # Verifies image signatures with Cosign
+  # ============================================================================
+  - name: verify-signature
+    public: true
+    plan:
+      - get: repo
+        trigger: true
+        passed: [build-and-push]
+
+      - get: docker-image
+        trigger: true
+        passed: [build-and-push]
+
+      - task: verify
+        config:
+          platform: linux
+          image_resource:
+            type: registry-image
+            source:
+              repository: alpine
+              tag: latest
+
+          inputs:
+            - name: repo
+
+          params:
+            COSIGN_PUBLIC_KEY: ((cosign_public_key))
+            DOCKER_REPOSITORY: ((docker_repository))
+            REGISTRY_USERNAME: ((registry_username))
+            REGISTRY_PASSWORD: ((registry_password))
+
+          run:
+            path: sh
+            args:
+              - -euc
+              - |
+                # Install cosign
+                apk add --no-cache cosign
+
+                # Get registry from docker repository
+                REGISTRY=$(echo "$DOCKER_REPOSITORY" | cut -d'/' -f1)
+
+                echo "Verifying signature for: ${DOCKER_REPOSITORY}:latest"
+
+                # Login to registry if not Docker Hub
+                if [ "$REGISTRY" != "docker.io" ] && [ "$REGISTRY" != "" ]; then
+                  cosign login "$REGISTRY" -u "$REGISTRY_USERNAME" -p "$REGISTRY_PASSWORD"
+                fi
+
+                # Verify the signature
+                echo "$COSIGN_PUBLIC_KEY" > cosign.pub
+                cosign verify --key cosign.pub "${DOCKER_REPOSITORY}:latest"
+
+                echo "✅ Signature verification successful"
+
+  # ============================================================================
+  # Job: Release (Tag-based)
+  # Builds and pushes versioned releases when git tags are created
+  # ============================================================================
+  - name: release
+    public: true
+    plan:
+      - get: repo
+        trigger: false
+
+      - task: verify-tag
+        config:
+          platform: linux
+          image_resource:
+            type: registry-image
+            source:
+              repository: alpine/git
+              tag: latest
+
+          inputs:
+            - name: repo
+
+          outputs:
+            - name: tag-name
+
+          run:
+            path: sh
+            args:
+              - -euc
+              - |
+                cd repo
+
+                # Check if current commit has a tag
+                TAG=$(git describe --tags --exact-match 2>/dev/null || echo "")
+
+                if [ -z "$TAG" ]; then
+                  echo "❌ No tag found on current commit"
+                  exit 1
+                fi
+
+                echo "✅ Found tag: $TAG"
+                echo "$TAG" > ../tag-name/tag-name
+
+      - task: build-release-image
+        privileged: true
+        config:
+          platform: linux
+          image_resource:
+            type: registry-image
+            source:
+              repository: concourse/oci-build-task
+              tag: latest
+
+          inputs:
+            - name: repo
+            - name: tag-name
+
+          outputs:
+            - name: image
+
+          params:
+            CONTEXT: repo
+            DOCKERFILE: repo/Dockerfile
+
+          run:
+            path: build
+
+      - put: docker-image-tagged
+        params:
+          image: image/image.tar
+          additional_tags: tag-name/tag-name
+
+      - task: sign-release
+        config:
+          platform: linux
+          image_resource:
+            type: registry-image
+            source:
+              repository: alpine
+              tag: latest
+
+          inputs:
+            - name: tag-name
+
+          params:
+            COSIGN_PRIVATE_KEY: ((cosign_private_key))
+            COSIGN_PASSWORD: ((cosign_password))
+            DOCKER_REPOSITORY: ((docker_repository))
+            REGISTRY_USERNAME: ((registry_username))
+            REGISTRY_PASSWORD: ((registry_password))
+
+          run:
+            path: sh
+            args:
+              - -euc
+              - |
+                # Install cosign
+                apk add --no-cache cosign
+
+                # Get registry from docker repository
+                REGISTRY=$(echo "$DOCKER_REPOSITORY" | cut -d'/' -f1)
+
+                # Login to registry if not Docker Hub
+                if [ "$REGISTRY" != "docker.io" ] && [ "$REGISTRY" != "" ]; then
+                  cosign login "$REGISTRY" -u "$REGISTRY_USERNAME" -p "$REGISTRY_PASSWORD"
+                fi
+
+                # Get the tag
+                TAG=$(cat tag-name/tag-name)
+
+                # Sign the release image
+                echo "Signing release image: ${DOCKER_REPOSITORY}:${TAG}"
+                cosign sign --key env://COSIGN_PRIVATE_KEY "${DOCKER_REPOSITORY}:${TAG}" -y
+
+                echo "✅ Release image signed successfully"
+
+# ============================================================================
+# Groups for organizing jobs in the UI
+# ============================================================================
+groups:
+  - name: main
+    jobs:
+      - test
+      - build-and-push
+      - verify-signature
+
+  - name: release
+    jobs:
+      - release

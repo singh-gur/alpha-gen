@@ -87,6 +87,11 @@ docker-compose.override.yml
 
 # --- CI/CD ---
 .github/workflows/
+ci/credentials.yml
+ci/credentials-*.yml
+ci/keys/
+*.key
+*.pub
 
 # --- MyPy ---
 .mypy_cache/
