@@ -16,25 +16,38 @@ logger = structlog.get_logger(__name__)
 
 research_app = typer.Typer(
     name="research",
-    help="Conduct deep-dive research on a company",
+    help="📊 Deep-Dive Company Research - Conduct comprehensive AI-powered research on any publicly traded company",
     no_args_is_help=True,
+    rich_markup_mode="rich",
 )
 
 
-@research_app.command("research")
+@research_app.callback(invoke_without_command=True)
 def research_command(
+    ctx: typer.Context,
     ticker: str = typer.Argument(
-        ...,
-        help="Stock ticker symbol (e.g., AAPL, MSFT)",
+        None,
+        help="Stock ticker symbol (e.g., AAPL, MSFT, TSLA)",
     ),
     output: str = typer.Option(
         "text",
         "--output",
         "-o",
-        help="Output format (text, json, markdown)",
+        help="Output format: 'text' (rich console), 'json' (structured data), 'markdown' (formatted report)",
     ),
 ) -> None:
-    """Conduct deep-dive research on a company."""
+    """
+    📊 Conduct comprehensive research on a company
+
+    Performs deep-dive analysis including fundamentals, market trends, and AI-generated insights.
+    Uses real-time data from Alpha Vantage API for accurate market information.
+
+    Example: alpha-gen research AAPL
+    """
+    # If no ticker provided, show help
+    if ticker is None:
+        rprint(ctx.get_help())
+        raise typer.Exit()
     rprint(f"[bold]Researching {ticker}...[/bold]")
 
     async def run_research() -> dict[str, Any]:

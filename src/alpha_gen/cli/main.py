@@ -17,16 +17,34 @@ from alpha_gen.core.utils.logging import setup_logging
 # Create main Typer app
 app = typer.Typer(
     name="alpha-gen",
-    help="AI-powered investment research assistant",
+    help="""
+    🤖 Alpha Gen - AI-Powered Investment Research Assistant
+
+    Leverage multi-agentic AI to analyze stocks, discover opportunities, and stay informed
+    about market trends using real-time data from Alpha Vantage API.
+
+    Features:
+      • Deep-dive company research with comprehensive analysis
+      • Market opportunity discovery from underperforming stocks
+      • News sentiment analysis for investment insights
+      • Quick stock analysis with optional news integration
+
+    Examples:
+      alpha-gen research AAPL              # Research Apple Inc.
+      alpha-gen opportunities --limit 50   # Find top 50 opportunities
+      alpha-gen news                       # Analyze market news
+      alpha-gen analyze NVDA --news        # Quick analysis with news
+    """,
     add_completion=False,
     no_args_is_help=True,
+    rich_markup_mode="rich",
 )
 
 # Register subcommands
-app.add_typer(research_app, name="research", invoke_without_command=True)
-app.add_typer(opportunities_app, name="opportunities", invoke_without_command=True)
-app.add_typer(news_app, name="news", invoke_without_command=True)
-app.add_typer(analyze_app, name="analyze", invoke_without_command=True)
+app.add_typer(research_app, name="research")
+app.add_typer(opportunities_app, name="opportunities")
+app.add_typer(news_app, name="news")
+app.add_typer(analyze_app, name="analyze")
 
 
 logger = structlog.get_logger(__name__)
@@ -54,22 +72,26 @@ def main(
         False,
         "--version",
         "-v",
-        help="Show version information",
+        help="Show version and exit",
         callback=version_callback,
         is_eager=True,
     ),
     debug: bool = typer.Option(
         False,
         "--debug",
-        help="Enable debug mode",
+        help="Enable debug mode with verbose logging",
     ),
     log_level: str = typer.Option(
         "INFO",
         "--log-level",
-        help="Set logging level",
+        help="Set logging level (DEBUG, INFO, WARNING, ERROR)",
     ),
 ) -> None:
-    """Alpha Gen - AI-powered investment research assistant."""
+    """
+    🤖 Alpha Gen - AI-Powered Investment Research Assistant
+
+    Multi-agentic AI system for comprehensive investment research and analysis.
+    """
     setup_app(debug=debug, log_level=log_level)
 
 

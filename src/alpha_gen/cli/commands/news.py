@@ -16,21 +16,30 @@ logger = structlog.get_logger(__name__)
 
 news_app = typer.Typer(
     name="news",
-    help="Analyze recent news for investment opportunities",
-    no_args_is_help=True,
+    help="📰 Market News Analysis - Analyze recent market news to identify investment opportunities and trends",
+    no_args_is_help=False,
+    rich_markup_mode="rich",
 )
 
 
-@news_app.command("news")
+@news_app.callback(invoke_without_command=True)
 def news_command(
+    ctx: typer.Context,
     output: str = typer.Option(
         "text",
         "--output",
         "-o",
-        help="Output format (text, json, markdown)",
+        help="Output format: 'text' (rich console), 'json' (structured data), 'markdown' (formatted report)",
     ),
 ) -> None:
-    """Analyze recent news for investment opportunities."""
+    """
+    📰 Analyze recent market news for investment opportunities
+
+    Performs AI-powered sentiment analysis on recent market news to identify
+    emerging trends, opportunities, and potential risks in the market.
+
+    Example: alpha-gen news
+    """
     rprint("[bold]Analyzing market news for investment opportunities...[/bold]")
 
     async def run_news() -> dict[str, Any]:

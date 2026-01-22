@@ -18,31 +18,46 @@ logger = structlog.get_logger(__name__)
 
 analyze_app = typer.Typer(
     name="analyze",
-    help="Quick analysis of a stock ticker",
+    help="⚡ Quick Stock Analysis - Fast, focused analysis of any stock ticker with optional news integration",
     no_args_is_help=True,
+    rich_markup_mode="rich",
 )
 
 
-@analyze_app.command("analyze")
+@analyze_app.callback(invoke_without_command=True)
 def analyze_command(
+    ctx: typer.Context,
     ticker: str = typer.Argument(
-        ...,
-        help="Stock ticker symbol to analyze",
+        None,
+        help="Stock ticker symbol to analyze (e.g., NVDA, GOOGL, AMZN)",
     ),
     news: bool = typer.Option(
         False,
         "--news",
         "-n",
-        help="Include news analysis",
+        help="Include recent news sentiment analysis in the report",
     ),
     output: str = typer.Option(
         "text",
         "--output",
         "-o",
-        help="Output format (text, json, markdown)",
+        help="Output format: 'text' (rich console), 'json' (structured data), 'markdown' (formatted report)",
     ),
 ) -> None:
-    """Quick analysis of a stock ticker."""
+    """
+    ⚡ Quick analysis of a stock ticker
+
+    Provides rapid insights with key metrics and AI-generated analysis.
+    Add --news flag to include sentiment analysis from recent market news.
+
+    Examples:
+      alpha-gen analyze NVDA           # Quick analysis
+      alpha-gen analyze TSLA --news    # Include news sentiment
+    """
+    # If no ticker provided, show help
+    if ticker is None:
+        rprint(ctx.get_help())
+        raise typer.Exit()
     ticker = ticker.upper()
     rprint(f"[bold]Quick analysis for {ticker}...[/bold]")
 
