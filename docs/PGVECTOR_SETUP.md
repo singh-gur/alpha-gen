@@ -102,14 +102,11 @@ POSTGRES_URL=postgresql://user@server:pass@server.postgres.database.azure.com:54
 ### Create Database and User
 
 ```sql
--- Create database
-CREATE DATABASE alpha_gen;
-
--- Create user
+-- Create user first
 CREATE USER alpha_gen_user WITH PASSWORD 'secure_password';
 
--- Grant privileges
-GRANT ALL PRIVILEGES ON DATABASE alpha_gen TO alpha_gen_user;
+-- Create database with user as owner
+CREATE DATABASE alpha_gen OWNER alpha_gen_user;
 
 -- Connect to the database
 \c alpha_gen
@@ -117,7 +114,7 @@ GRANT ALL PRIVILEGES ON DATABASE alpha_gen TO alpha_gen_user;
 -- Enable pgvector
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- Grant schema permissions
+-- Grant schema permissions (if needed)
 GRANT ALL ON SCHEMA public TO alpha_gen_user;
 ```
 
