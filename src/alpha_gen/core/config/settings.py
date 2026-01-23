@@ -6,7 +6,7 @@ Loads configuration from environment variables and config files.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import yaml
 from dotenv import load_dotenv
@@ -42,9 +42,16 @@ class LLMConfig(BaseModel):
 class VectorStoreConfig(BaseModel):
     """Configuration for vector store."""
 
-    provider: Literal["chroma", "pinecone", "weaviate"] = "chroma"  # type: ignore[assignment]
+    provider: Literal["chroma", "pgvector"] = "chroma"  # type: ignore[assignment]
+
+    # Chroma settings
     persist_directory: Path = Path("./data/vector_store")
     collection_name: str = "alpha_gen_docs"
+
+    # pgvector settings
+    postgres_url: str | None = None  # postgresql://user:pass@host:port/dbname
+
+    # Common settings
     embedding_model: str = "all-MiniLM-L6-v2"
 
     model_config = {"frozen": True}
@@ -52,13 +59,22 @@ class VectorStoreConfig(BaseModel):
     @validator("provider")
     def validate_provider(cls, v: str) -> str:  # type: ignore[no-untyped-def]
         """Validate vector store provider."""
-        valid_providers = ["chroma", "pinecone", "weaviate"]
+        valid_providers = ["chroma", "pgvector"]
         if v not in valid_providers:
             raise ValueError(f"Invalid provider: {v}. Must be one of {valid_providers}")
         return v
 
+    @validator("postgres_url")
+    def validate_postgres_url(cls, v: str | None, values: dict[str, Any]) -> str | None:  # type: ignore[no-untyped-def]
+        """Validate postgres_url is provided when using pgvector."""
+        provider = values.get("provider")
+        if provider == "pgvector" and not v:
+            raise ValueError("postgres_url is required when provider is 'pgvector'")
+        return v
+
     def __post_init__(self) -> None:
-        self.persist_directory.mkdir(parents=True, exist_ok=True)
+        if self.provider == "chroma":
+            self.persist_directory.mkdir(parents=True, exist_ok=True)
 
 
 class AlphaVantageConfig(BaseModel):
@@ -168,6 +184,7 @@ class AppConfig(BaseModel):
             ),
             collection_name=os.getenv("VECTOR_STORE_COLLECTION", "alpha_gen_docs")
             or "alpha_gen_docs",
+            postgres_url=os.getenv("POSTGRES_URL"),
             embedding_model=os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
             or "all-MiniLM-L6-v2",
         )

@@ -2,30 +2,19 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_core.vectorstores import VectorStoreRetriever
 from sentence_transformers import SentenceTransformer
 
 from alpha_gen.core.config.settings import get_config
+from alpha_gen.core.rag.base import BaseVectorStore, RetrievalResult
 from alpha_gen.core.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-@dataclass(frozen=True)
-class RetrievalResult:
-    """Result from document retrieval."""
-
-    content: str
-    source: str
-    score: float
-    metadata: dict[str, Any]
 
 
 class SentenceTransformerEmbeddings(Embeddings):
@@ -44,20 +33,24 @@ class SentenceTransformerEmbeddings(Embeddings):
 
 
 class VectorStoreManager:
-    """Manager for vector store operations."""
+    """Manager for vector store operations with support for multiple backends."""
 
     def __init__(
         self,
+        provider: str = "chroma",
         persist_directory: Path | None = None,
         collection_name: str = "alpha_gen_docs",
         embedding_model: str = "all-MiniLM-L6-v2",
+        postgres_url: str | None = None,
     ) -> None:
+        self.provider = provider
         self.persist_directory = persist_directory or Path("./data/vector_store")
         self.collection_name = collection_name
         self.embedding_model = embedding_model
+        self.postgres_url = postgres_url
 
         self._embeddings: SentenceTransformerEmbeddings | None = None
-        self._vector_store: Chroma | None = None
+        self._vector_store: BaseVectorStore | None = None
 
     @property
     def embeddings(self) -> SentenceTransformerEmbeddings:
@@ -67,14 +60,33 @@ class VectorStoreManager:
         return self._embeddings
 
     @property
-    def vector_store(self) -> Chroma:
-        """Get or create vector store."""
+    def vector_store(self) -> BaseVectorStore:
+        """Get or create vector store based on provider."""
         if self._vector_store is None:
-            self._vector_store = Chroma(
-                persist_directory=str(self.persist_directory),
-                collection_name=self.collection_name,
-                embedding_function=self.embeddings,
-            )
+            if self.provider == "chroma":
+                from alpha_gen.core.rag.chroma_store import ChromaVectorStore
+
+                self._vector_store = ChromaVectorStore(
+                    persist_directory=self.persist_directory,
+                    collection_name=self.collection_name,
+                    embeddings=self.embeddings,
+                )
+                logger.info("Initialized Chroma vector store")
+            elif self.provider == "pgvector":
+                if not self.postgres_url:
+                    raise ValueError("postgres_url is required for pgvector provider")
+
+                from alpha_gen.core.rag.pgvector_store import PGVectorStore
+
+                self._vector_store = PGVectorStore(
+                    postgres_url=self.postgres_url,
+                    collection_name=self.collection_name,
+                    embeddings=self.embeddings,
+                )
+                logger.info("Initialized pgvector store")
+            else:
+                raise ValueError(f"Unsupported vector store provider: {self.provider}")
+
         return self._vector_store
 
     def add_documents(
@@ -256,7 +268,9 @@ def get_vector_store_manager() -> VectorStoreManager:
     config = get_config()
 
     return VectorStoreManager(
+        provider=config.vector_store.provider,
         persist_directory=config.vector_store.persist_directory,
         collection_name=config.vector_store.collection_name,
         embedding_model=config.vector_store.embedding_model,
+        postgres_url=config.vector_store.postgres_url,
     )
