@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
-import structlog
 import typer
 from rich import print as rprint
 
-from alpha_gen.cli.helpers import output_result
+from alpha_gen.cli.base import OutputOption, SaveOption
+from alpha_gen.cli.decorators import async_command
 from alpha_gen.core.agents import analyze_news
-
-logger = structlog.get_logger(__name__)
 
 news_app = typer.Typer(
     name="news",
@@ -23,43 +20,37 @@ news_app = typer.Typer(
 
 
 @news_app.callback(invoke_without_command=True)
-def news_command(
+@async_command
+async def news_command(
     ctx: typer.Context,
-    output: str = typer.Option(
-        "text",
-        "--output",
-        "-o",
-        help="Output format: 'text' (rich console), 'json' (structured data), 'markdown' (formatted report)",
-    ),
-) -> None:
+    output: OutputOption = "text",
+    save: SaveOption = False,
+) -> dict[str, Any]:
     """
     📰 Analyze recent market news for investment opportunities
 
     Performs AI-powered sentiment analysis on recent market news to identify
     emerging trends, opportunities, and potential risks in the market.
 
-    Example: alpha-gen news
+    Example: alpha-gen news --save
     """
     rprint("[bold]Analyzing market news for investment opportunities...[/bold]")
 
-    async def run_news() -> dict[str, Any]:
-        return await analyze_news()
+    # Run news analysis
+    result = await analyze_news()
 
-    try:
-        result = asyncio.run(run_news())
+    # Handle output if successful
+    if result.get("status") == "success":
+        analysis = result.get("analysis", "No analysis available")
 
-        if result.get("status") == "success":
-            analysis = result.get("analysis", "No analysis available")
-            output_result(
-                output_format=output,
-                title="News-Based Investment Opportunities",
-                content=analysis,
-            )
-        else:
-            rprint(f"[red]Error: {result.get('error', 'Unknown error')}[/red]")
-            raise typer.Exit(1)
+        from alpha_gen.cli.helpers import output_result
 
-    except Exception as e:
-        logger.error("News command failed", error=str(e))
-        rprint(f"[red]Error: {e!s}[/red]")
-        raise typer.Exit(1)
+        output_result(
+            output_format=output,
+            title="News-Based Investment Opportunities",
+            content=analysis,
+            save=save,
+            filename_prefix="news",
+        )
+
+    return result

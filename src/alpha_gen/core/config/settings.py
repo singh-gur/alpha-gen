@@ -92,6 +92,18 @@ class ObservabilityConfig(BaseModel):
         return bool(self.public_key and self.secret_key)
 
 
+class OutputConfig(BaseModel):
+    """Configuration for output file generation."""
+
+    output_dir: Path = Path(".out")
+
+    model_config = {"frozen": True}
+
+    def ensure_output_dir(self) -> None:
+        """Ensure output directory exists."""
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+
 class AppConfig(BaseModel):
     """Main application configuration."""
 
@@ -104,6 +116,7 @@ class AppConfig(BaseModel):
     vector_store: VectorStoreConfig = Field(default_factory=VectorStoreConfig)
     alpha_vantage: AlphaVantageConfig = Field(default_factory=AlphaVantageConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
+    output: OutputConfig = Field(default_factory=OutputConfig)
 
     model_config = {"frozen": True}
 
@@ -171,6 +184,10 @@ class AppConfig(BaseModel):
             host=os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com"),
         )
 
+        output_config = OutputConfig(
+            output_dir=Path(os.getenv("OUTPUT_DIR", ".out")),
+        )
+
         return cls(
             debug=os.getenv("DEBUG", "False").lower() == "true",
             log_level=os.getenv("LOG_LEVEL", "INFO") or "INFO",  # type: ignore[arg-type]
@@ -178,6 +195,7 @@ class AppConfig(BaseModel):
             vector_store=vector_store_config,
             alpha_vantage=alpha_vantage_config,
             observability=observability_config,
+            output=output_config,
         )
 
 

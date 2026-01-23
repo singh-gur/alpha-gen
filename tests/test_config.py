@@ -7,7 +7,12 @@ from pathlib import Path
 
 import pytest
 
-from alpha_gen.core.config.settings import AppConfig, LLMConfig, get_config
+from alpha_gen.core.config.settings import (
+    AppConfig,
+    LLMConfig,
+    OutputConfig,
+    get_config,
+)
 
 
 class TestLLMConfig:
@@ -112,3 +117,29 @@ class TestAppConfig:
 
         with pytest.raises(Exception):
             config.app_name = "Modified"
+
+
+class TestOutputConfig:
+    """Tests for OutputConfig."""
+
+    def test_default_values(self) -> None:
+        """Test default output configuration."""
+        config = OutputConfig()
+
+        assert config.output_dir == Path(".out")
+
+    def test_custom_output_dir(self) -> None:
+        """Test custom output directory."""
+        config = OutputConfig(output_dir=Path("/tmp/reports"))
+
+        assert config.output_dir == Path("/tmp/reports")
+
+    def test_ensure_output_dir(self, tmp_path: Path) -> None:
+        """Test that ensure_output_dir creates the directory."""
+        output_dir = tmp_path / "test_output"
+        config = OutputConfig(output_dir=output_dir)
+
+        assert not output_dir.exists()
+        config.ensure_output_dir()
+        assert output_dir.exists()
+        assert output_dir.is_dir()

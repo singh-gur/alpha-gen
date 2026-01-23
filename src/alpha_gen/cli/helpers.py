@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from rich import print as rprint
 from rich.panel import Panel
 from rich.table import Table
+
+from alpha_gen.core.config.settings import get_config
 
 
 def format_markdown(
@@ -70,12 +74,55 @@ def format_markdown(
     return "\n".join(lines)
 
 
+def save_markdown_report(
+    title: str,
+    content: str,
+    metadata: dict[str, Any] | None = None,
+    losers_data: list[dict[str, Any]] | None = None,
+    filename_prefix: str = "report",
+) -> Path:
+    """Save markdown report to output directory.
+
+    Args:
+        title: Report title
+        content: Main content
+        metadata: Optional metadata
+        losers_data: Optional losers data
+        filename_prefix: Prefix for the filename (e.g., 'research', 'opportunities')
+
+    Returns:
+        Path to the saved file
+    """
+    config = get_config()
+    config.output.ensure_output_dir()
+
+    # Generate filename with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{filename_prefix}_{timestamp}.md"
+    filepath = config.output.output_dir / filename
+
+    # Format as markdown
+    markdown_content = format_markdown(
+        title=title,
+        content=content,
+        metadata=metadata,
+        losers_data=losers_data,
+    )
+
+    # Write to file
+    filepath.write_text(markdown_content, encoding="utf-8")
+
+    return filepath
+
+
 def output_result(
     output_format: str,
     title: str,
     content: str,
     metadata: dict[str, Any] | None = None,
     losers_data: list[dict[str, Any]] | None = None,
+    save: bool = False,
+    filename_prefix: str = "report",
 ) -> None:
     """Output result in the specified format.
 
@@ -85,6 +132,8 @@ def output_result(
         content: Main content
         metadata: Optional metadata
         losers_data: Optional losers data
+        save: Whether to save the report as a markdown file
+        filename_prefix: Prefix for saved filename
     """
     if output_format == "json":
         import json
@@ -134,3 +183,14 @@ def output_result(
                 expand=False,
             )
         )
+
+    # Save to file if requested
+    if save:
+        saved_path = save_markdown_report(
+            title=title,
+            content=content,
+            metadata=metadata,
+            losers_data=losers_data,
+            filename_prefix=filename_prefix,
+        )
+        rprint(f"\n[green]✓[/green] Report saved to: [cyan]{saved_path}[/cyan]")

@@ -9,6 +9,8 @@ This package contains:
 - tools: Agent tools and utilities
 """
 
+from __future__ import annotations
+
 from alpha_gen.core.agents import (
     AgentConfig,
     AgentState,

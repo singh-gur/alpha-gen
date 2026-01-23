@@ -1,5 +1,7 @@
 """Main entry point for Alpha Gen application."""
 
+from __future__ import annotations
+
 import sys
 
 from alpha_gen.cli.main import app

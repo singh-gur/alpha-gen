@@ -74,6 +74,7 @@ vector_store/
 *.key
 temp/
 tmp/
+.out/
 
 # --- Environment ---
 .env

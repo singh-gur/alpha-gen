@@ -17,6 +17,7 @@ Each agent follows a multi-step workflow orchestrated by LangGraph, fetching rea
 - **Deep-dive Research**: Comprehensive company analysis including financials, valuation metrics, news sentiment, and investment recommendations
 - **Opportunities Finder**: Identifies undervalued stocks from market losers by analyzing fundamentals, trading patterns, and recovery potential
 - **News Analysis**: Discovers investment opportunities from recent news by analyzing sentiment scores, market catalysts, and potential price impacts
+- **Report Generation**: Save analysis reports as markdown files with `--save` flag (default output directory: `.out`)
 - **Agentic Architecture**: Built with LangGraph for orchestrating multi-step agent workflows with structured state management
 - **Real-time Data**: Fetches live market data, company overviews, and news sentiment from Alpha Vantage API
 - **Configurable LLM Backend**: Supports OpenAI, OpenRouter, and local Ollama models via OpenAI-compatible API
@@ -63,6 +64,12 @@ just news
 just analyze NVDA
 just analyze TSLA --news
 
+# Save reports as markdown files (saved to .out/ directory by default)
+just research AAPL --save
+just opportunities --save
+just news --save
+just analyze NVDA --save
+
 # With custom log level
 just run-with-log-level DEBUG research AAPL
 ```
@@ -84,6 +91,7 @@ OPENAI_API_KEY=your-api-key-here
 LANGFUSE_PUBLIC_KEY=your-langfuse-key
 LANGFUSE_SECRET_KEY=your-langfuse-secret
 LOG_LEVEL=INFO
+OUTPUT_DIR=.out  # Directory for saved markdown reports
 ```
 
 ## Development
