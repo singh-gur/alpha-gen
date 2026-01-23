@@ -29,12 +29,13 @@ Your analysis should include:
 1. Company overview and business model
 2. Financial health assessment (revenue, profitability, debt)
 3. Competitive positioning
-4. Recent news and sentiment analysis
+4. Recent news and sentiment analysis - IMPORTANT: Analyze each news article provided, noting sentiment trends and key developments
 5. Risk assessment
 6. Investment recommendation with confidence level
 
 Be thorough, objective, and base your analysis on the provided data.
 Provide specific metrics and figures where available.
+When analyzing news sentiment, reference specific articles and their sentiment scores to support your conclusions.
 """
 
 
@@ -194,6 +195,38 @@ async def analyze_data_node(state: AgentState) -> AgentState:
     except Exception as e:
         logger.warning("Failed to retrieve RAG context", error=str(e))
 
+    # Format news articles for better readability
+    news_feed = news_sentiment.get("feed", [])
+    formatted_news = ""
+    if news_feed:
+        formatted_news = "\n"
+        for i, article in enumerate(news_feed[:10], 1):
+            title = article.get("title", "N/A")
+            summary = article.get("summary", "N/A")
+            sentiment = article.get("overall_sentiment_label", "N/A")
+            sentiment_score = article.get("overall_sentiment_score", "N/A")
+            source = article.get("source", "N/A")
+            time_published = article.get("time_published", "N/A")
+
+            # Format timestamp if available
+            if time_published != "N/A" and len(time_published) >= 8:
+                try:
+                    dt = datetime.strptime(time_published[:15], "%Y%m%dT%H%M%S")
+                    time_published = dt.strftime("%Y-%m-%d")
+                except ValueError:
+                    pass
+
+            formatted_news += f"""
+Article {i}:
+- Title: {title}
+- Source: {source}
+- Date: {time_published}
+- Sentiment: {sentiment} (Score: {sentiment_score})
+- Summary: {summary[:300]}...
+"""
+    else:
+        formatted_news = "\nNo recent news articles available."
+
     # Build a comprehensive analysis prompt with RAG context
     analysis_prompt = f"""Analyze the following company data for {ticker}:
 
@@ -214,14 +247,14 @@ Description:
 {overview.get("Description", "N/A")[:1000]}
 
 Recent News & Sentiment:
-{str(news_sentiment.get("feed", [])[:10])[:3000]}
+{formatted_news}
 {rag_context}
 
 Please provide a comprehensive investment research report including:
 1. Company overview and business model
 2. Financial health assessment
 3. Valuation analysis
-4. News sentiment and market perception
+4. News sentiment and market perception (analyze the news articles above)
 5. Investment recommendation with confidence level
 
 Note: Use the historical context above to compare with similar companies and identify patterns.
