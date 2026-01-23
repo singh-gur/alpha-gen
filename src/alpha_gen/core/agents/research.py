@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from datetime import datetime
 from typing import Any
 
 from langchain_core.messages import HumanMessage
@@ -71,11 +72,32 @@ async def fetch_company_data_node(state: AgentState) -> AgentState:
             timeout=config.alpha_vantage.timeout_seconds,
         )
 
+        # Extract timestamps from the actual data
+        # Company overview includes LatestQuarter field
+        latest_quarter = overview_data.content.get("LatestQuarter", "N/A")
+
+        # News data includes time_published for each article
+        news_feed = news_data.content.get("feed", [])
+        latest_news_time = "N/A"
+        if news_feed and len(news_feed) > 0:
+            # Get the most recent news timestamp (format: YYYYMMDDTHHMMSS)
+            latest_news_time = news_feed[0].get("time_published", "N/A")
+            # Format it nicely if available
+            if latest_news_time != "N/A" and len(latest_news_time) >= 8:
+                try:
+                    # Parse YYYYMMDDTHHMMSS format
+                    dt = datetime.strptime(latest_news_time[:15], "%Y%m%dT%H%M%S")
+                    latest_news_time = dt.strftime("%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    pass  # Keep original if parsing fails
+
         # Combine all data into context
         combined_context: dict[str, Any] = {
             "ticker": ticker,
             "company_overview": overview_data.content,
             "news_sentiment": news_data.content,
+            "latest_quarter": latest_quarter,
+            "latest_news_time": latest_news_time,
         }
 
         return {
@@ -329,12 +351,15 @@ class ResearchAgent(BaseAgent):
                 duration_ms=duration_ms,
             )
 
+            context = result.get("context", {})
             return {
                 "status": "success",
                 "ticker": input_data.get("ticker"),
                 "analysis": result.get("result"),
-                "context": result.get("context"),
+                "context": context,
                 "duration_ms": duration_ms,
+                "latest_quarter": context.get("latest_quarter"),
+                "latest_news_time": context.get("latest_news_time"),
             }
 
         except Exception as e:

@@ -11,20 +11,11 @@ from alpha_gen.cli.base import OutputOption, SaveOption
 from alpha_gen.cli.decorators import async_command
 from alpha_gen.core.agents import research_company
 
-research_app = typer.Typer(
-    name="research",
-    help="📊 Deep-Dive Company Research - Conduct comprehensive AI-powered research on any publicly traded company",
-    no_args_is_help=True,
-    rich_markup_mode="rich",
-)
 
-
-@research_app.callback(invoke_without_command=True)
 @async_command
 async def research_command(
-    ctx: typer.Context,
     ticker: str = typer.Argument(
-        None,
+        ...,
         help="Stock ticker symbol (e.g., AAPL, MSFT, TSLA)",
     ),
     output: OutputOption = "text",
@@ -38,11 +29,6 @@ async def research_command(
 
     Example: alpha-gen research AAPL --save
     """
-    # If no ticker provided, show help
-    if ticker is None:
-        rprint(ctx.get_help())
-        raise typer.Exit()
-
     ticker = ticker.upper()
     rprint(f"[bold]Researching {ticker}...[/bold]")
 
@@ -53,6 +39,8 @@ async def research_command(
     if result.get("status") == "success":
         analysis = result.get("analysis", "No analysis available")
         duration = result.get("duration_ms", 0)
+        latest_quarter = result.get("latest_quarter", "N/A")
+        latest_news = result.get("latest_news_time", "N/A")
 
         from alpha_gen.cli.helpers import output_result
 
@@ -63,6 +51,8 @@ async def research_command(
             metadata={
                 "ticker": ticker,
                 "duration_ms": f"{duration:.0f}",
+                "financial_data_as_of": latest_quarter,
+                "latest_news_as_of": latest_news,
             },
             save=save,
             filename_prefix=f"research_{ticker}",

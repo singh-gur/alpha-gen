@@ -9,8 +9,8 @@ from alpha_gen.cli.commands import (
     analyze_app,
     news_app,
     opportunities_app,
-    research_app,
 )
+from alpha_gen.cli.commands.research import research_command
 from alpha_gen.core.config.settings import get_config
 from alpha_gen.core.utils.logging import setup_logging
 
@@ -40,8 +40,8 @@ app = typer.Typer(
     rich_markup_mode="rich",
 )
 
-# Register subcommands
-app.add_typer(research_app, name="research")
+# Register commands
+app.command(name="research", help="📊 Deep-Dive Company Research")(research_command)
 app.add_typer(opportunities_app, name="opportunities")
 app.add_typer(news_app, name="news")
 app.add_typer(analyze_app, name="analyze")

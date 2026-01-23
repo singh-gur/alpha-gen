@@ -14,15 +14,15 @@ from alpha_gen.core.agents import analyze_news
 news_app = typer.Typer(
     name="news",
     help="📰 Market News Analysis - Analyze recent market news to identify investment opportunities and trends",
+    invoke_without_command=True,
     no_args_is_help=False,
     rich_markup_mode="rich",
 )
 
 
-@news_app.callback(invoke_without_command=True)
+@news_app.callback()
 @async_command
 async def news_command(
-    ctx: typer.Context,
     output: OutputOption = "text",
     save: SaveOption = False,
 ) -> dict[str, Any]:

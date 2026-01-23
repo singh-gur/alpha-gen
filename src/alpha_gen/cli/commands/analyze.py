@@ -16,15 +16,15 @@ from alpha_gen.core.agents import analyze_news, research_company
 analyze_app = typer.Typer(
     name="analyze",
     help="⚡ Quick Stock Analysis - Fast, focused analysis of any stock ticker with optional news integration",
+    invoke_without_command=True,
     no_args_is_help=True,
     rich_markup_mode="rich",
 )
 
 
-@analyze_app.callback(invoke_without_command=True)
+@analyze_app.callback()
 @async_command
 async def analyze_command(
-    ctx: typer.Context,
     ticker: str = typer.Argument(
         None,
         help="Stock ticker symbol to analyze (e.g., NVDA, GOOGL, AMZN)",
@@ -50,7 +50,6 @@ async def analyze_command(
     """
     # If no ticker provided, show help
     if ticker is None:
-        rprint(ctx.get_help())
         raise typer.Exit()
 
     ticker = ticker.upper()
@@ -67,6 +66,8 @@ async def analyze_command(
     if result.get("status") == "success":
         duration = result.get("duration_ms", 0)
         analysis = result.get("analysis", "")
+        latest_quarter = result.get("latest_quarter", "N/A")
+        latest_news = result.get("latest_news_time", "N/A")
 
         if output == "markdown":
             # Full markdown output
@@ -83,6 +84,8 @@ async def analyze_command(
                 metadata={
                     "ticker": ticker,
                     "duration_ms": f"{duration:.0f}",
+                    "financial_data_as_of": latest_quarter,
+                    "latest_news_as_of": latest_news,
                 },
                 save=save,
                 filename_prefix=f"analyze_{ticker}",

@@ -14,15 +14,15 @@ from alpha_gen.core.agents import find_opportunities
 opportunities_app = typer.Typer(
     name="opportunities",
     help="💎 Investment Opportunity Discovery - Discover potential investment opportunities by analyzing underperforming stocks",
+    invoke_without_command=True,
     no_args_is_help=False,
     rich_markup_mode="rich",
 )
 
 
-@opportunities_app.callback(invoke_without_command=True)
+@opportunities_app.callback()
 @async_command
 async def opportunities_command(
-    ctx: typer.Context,
     limit: int = typer.Option(
         25,
         "--limit",
