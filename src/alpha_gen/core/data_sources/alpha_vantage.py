@@ -129,6 +129,12 @@ class AlphaVantageClient(BaseDataSource):
             if "Note" in data:
                 self._logger.warning("Alpha Vantage API rate limit", note=data["Note"])
                 raise ValueError(f"Alpha Vantage API rate limit: {data['Note']}")
+            if "Information" in data and "feed" not in data:
+                # Information key without feed indicates rate limit or API issue
+                self._logger.warning(
+                    "Alpha Vantage API limit", info=data["Information"]
+                )
+                raise ValueError(f"Alpha Vantage API limit: {data['Information']}")
 
             return SourceData(
                 source="alpha_vantage",
