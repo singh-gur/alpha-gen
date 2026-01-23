@@ -15,10 +15,10 @@ from alpha_gen.core.agents import analyze_news, research_company
 
 analyze_app = typer.Typer(
     name="analyze",
-    help="⚡ Quick Stock Analysis - Fast, focused analysis of any stock ticker with optional news integration",
+    help="⚡ Quick stock analysis with optional news",
     invoke_without_command=True,
     no_args_is_help=True,
-    rich_markup_mode="rich",
+    rich_markup_mode=None,
 )
 
 

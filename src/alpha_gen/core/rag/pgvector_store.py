@@ -48,9 +48,22 @@ class PGVectorStore(BaseVectorStore):
         ids: list[str] | None = None,
     ) -> list[str]:
         """Add documents to the vector store."""
+        # Ensure texts are strings, not Document objects
+        processed_texts = []
+        for text in texts:
+            if isinstance(text, Document):
+                logger.warning(
+                    "Received Document object instead of string, extracting page_content"
+                )
+                processed_texts.append(text.page_content)
+            else:
+                processed_texts.append(text)
+
         documents = [
             Document(page_content=text, metadata=meta or {})
-            for text, meta in zip(texts, metadatas or [{}] * len(texts))
+            for text, meta in zip(
+                processed_texts, metadatas or [{}] * len(processed_texts)
+            )
         ]
 
         ids = self.vector_store.add_documents(documents, ids=ids)
@@ -64,8 +77,13 @@ class PGVectorStore(BaseVectorStore):
         metadata_filter: dict[str, Any] | None = None,
     ) -> list[RetrievalResult]:
         """Search for similar documents."""
-        # pgvector uses filter parameter for metadata filtering
-        docs = self.vector_store.similarity_search(query, k=k, filter=metadata_filter)
+        # Only pass filter if it's not None
+        if metadata_filter is not None:
+            docs = self.vector_store.similarity_search(
+                query, k=k, filter=metadata_filter
+            )
+        else:
+            docs = self.vector_store.similarity_search(query, k=k)
 
         return [
             RetrievalResult(

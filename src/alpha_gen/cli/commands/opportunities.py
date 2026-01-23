@@ -13,10 +13,10 @@ from alpha_gen.core.agents import find_opportunities
 
 opportunities_app = typer.Typer(
     name="opportunities",
-    help="💎 Investment Opportunity Discovery - Discover potential investment opportunities by analyzing underperforming stocks",
+    help="💎 Find investment opportunities from underperforming stocks",
     invoke_without_command=True,
     no_args_is_help=False,
-    rich_markup_mode="rich",
+    rich_markup_mode=None,
 )
 
 

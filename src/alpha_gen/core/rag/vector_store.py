@@ -105,9 +105,22 @@ class VectorStoreManager:
         Returns:
             List of document IDs
         """
+        # Ensure texts are strings, not Document objects
+        processed_texts = []
+        for text in texts:
+            if isinstance(text, Document):
+                logger.warning(
+                    "Received Document object instead of string, extracting page_content"
+                )
+                processed_texts.append(text.page_content)
+            else:
+                processed_texts.append(text)
+
         documents = [
             Document(page_content=text, metadata=meta or {})
-            for text, meta in zip(texts, metadatas or [{}] * len(texts))
+            for text, meta in zip(
+                processed_texts, metadatas or [{}] * len(processed_texts)
+            )
         ]
 
         ids = self.vector_store.add_documents(documents, ids=ids)
@@ -130,17 +143,11 @@ class VectorStoreManager:
         Returns:
             List of RetrievalResult objects
         """
-        docs = self.vector_store.similarity_search(query, k=k, filter=metadata_filter)
-
-        return [
-            RetrievalResult(
-                content=doc.page_content,
-                source=doc.metadata.get("source", "unknown"),
-                score=doc.metadata.get("score", 0.0),
-                metadata=doc.metadata,
-            )
-            for doc in docs
-        ]
+        # Delegate to the underlying vector store
+        # It already returns RetrievalResult objects, no need to wrap again
+        return self.vector_store.similarity_search(
+            query, k=k, metadata_filter=metadata_filter
+        )
 
     def get_retriever(
         self, search_kwargs: dict[str, Any] | None = None

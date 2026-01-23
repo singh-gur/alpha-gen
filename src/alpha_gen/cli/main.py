@@ -14,7 +14,7 @@ from alpha_gen.cli.commands.research import research_command
 from alpha_gen.core.config.settings import get_config
 from alpha_gen.core.utils.logging import setup_logging
 
-# Create main Typer app
+# Create main Typer app with simple formatting (no boxes, but keep colors)
 app = typer.Typer(
     name="alpha-gen",
     help="""
@@ -37,7 +37,8 @@ app = typer.Typer(
     """,
     add_completion=False,
     no_args_is_help=True,
-    rich_markup_mode="rich",
+    rich_markup_mode=None,  # Disable rich markup (no boxes in help)
+    pretty_exceptions_enable=True,
 )
 
 # Register commands

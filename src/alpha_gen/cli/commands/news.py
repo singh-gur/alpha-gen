@@ -13,10 +13,10 @@ from alpha_gen.core.agents import analyze_news
 
 news_app = typer.Typer(
     name="news",
-    help="📰 Market News Analysis - Analyze recent market news to identify investment opportunities and trends",
+    help="📰 Analyze market news for investment opportunities",
     invoke_without_command=True,
     no_args_is_help=False,
-    rich_markup_mode="rich",
+    rich_markup_mode=None,
 )
 
 

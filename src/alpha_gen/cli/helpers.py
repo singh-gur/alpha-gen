@@ -2,15 +2,24 @@
 
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from rich import print as rprint
-from rich.panel import Panel
 from rich.table import Table
 
 from alpha_gen.core.config.settings import get_config
+
+
+def _use_plain_output() -> bool:
+    """Check if plain output (no colors) should be used.
+
+    Returns True if NO_COLOR or PLAIN_OUTPUT environment variables are set.
+    By default, output uses colors but no boxes/panels.
+    """
+    return os.getenv("NO_COLOR") is not None or os.getenv("PLAIN_OUTPUT") is not None
 
 
 def format_markdown(
@@ -155,34 +164,64 @@ def output_result(
         )
         rprint(markdown_content)
     else:
-        # Default to text/rich output
+        # Default to text output with colors but no boxes
+        plain_output = _use_plain_output()
+
         if losers_data:
-            table = Table(title="Top Losers Analyzed")
-            table.add_column("Ticker")
-            table.add_column("Name")
-            table.add_column("Price")
-            table.add_column("Change")
-            table.add_column("Volume")
-
-            for loser in losers_data[:10]:
-                table.add_row(
-                    loser.get("ticker", "N/A"),
-                    loser.get("name", "N/A")[:30],
-                    loser.get("price", "N/A"),
-                    loser.get("change", "N/A"),
-                    loser.get("volume", "N/A"),
+            if plain_output:
+                # Plain text table (no colors)
+                rprint("\nTop Losers Analyzed:")
+                rprint("-" * 80)
+                rprint(
+                    f"{'Ticker':<10} {'Name':<32} {'Price':<10} {'Change':<10} {'Volume':<10}"
                 )
+                rprint("-" * 80)
+                for loser in losers_data[:10]:
+                    rprint(
+                        f"{loser.get('ticker', 'N/A'):<10} "
+                        f"{loser.get('name', 'N/A')[:30]:<32} "
+                        f"{loser.get('price', 'N/A'):<10} "
+                        f"{loser.get('change', 'N/A'):<10} "
+                        f"{loser.get('volume', 'N/A'):<10}"
+                    )
+                rprint("-" * 80)
+                rprint("")
+            else:
+                # Rich table with colors (default)
+                table = Table(
+                    title="Top Losers Analyzed",
+                    show_header=True,
+                    header_style="bold cyan",
+                )
+                table.add_column("Ticker", style="cyan")
+                table.add_column("Name", style="white")
+                table.add_column("Price", style="green")
+                table.add_column("Change", style="red")
+                table.add_column("Volume", style="yellow")
 
-            rprint(table)
-            rprint("")
+                for loser in losers_data[:10]:
+                    table.add_row(
+                        loser.get("ticker", "N/A"),
+                        loser.get("name", "N/A")[:30],
+                        loser.get("price", "N/A"),
+                        loser.get("change", "N/A"),
+                        loser.get("volume", "N/A"),
+                    )
 
-        rprint(
-            Panel(
-                content,
-                title=title,
-                expand=False,
-            )
-        )
+                rprint(table)
+                rprint("")
+
+        # Always use simple output without boxes (default behavior)
+        # Only use completely plain text if NO_COLOR is set
+        if plain_output:
+            rprint(f"\n{title}")
+            rprint("=" * len(title))
+            rprint(content)
+        else:
+            # Simple colored output without panel boxes
+            rprint(f"\n[bold cyan]{title}[/bold cyan]")
+            rprint("=" * len(title))
+            rprint(content)
 
     # Save to file if requested
     if save:

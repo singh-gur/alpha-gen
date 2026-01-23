@@ -92,6 +92,10 @@ LANGFUSE_PUBLIC_KEY=your-langfuse-key
 LANGFUSE_SECRET_KEY=your-langfuse-secret
 LOG_LEVEL=INFO
 OUTPUT_DIR=.out  # Directory for saved markdown reports
+
+# Output formatting (optional)
+NO_COLOR=1        # Disable all colors (plain text only)
+PLAIN_OUTPUT=1    # Alternative to NO_COLOR
 ```
 
 ## Development
