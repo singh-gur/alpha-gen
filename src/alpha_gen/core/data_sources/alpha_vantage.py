@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -12,6 +13,61 @@ import structlog
 from alpha_gen.core.data_sources.base import BaseDataSource, SourceData
 
 logger = structlog.get_logger(__name__)
+
+
+# Global rate limiter state shared across all AlphaVantageClient instances
+_global_rate_limiter_lock = asyncio.Lock()
+_global_last_request_time: float = 0.0
+
+
+class RateLimitedAsyncClient:
+    """Async HTTP client with rate limiting.
+
+    Ensures a minimum delay between requests to respect API rate limits.
+    """
+
+    def __init__(
+        self,
+        client: httpx.AsyncClient,
+        min_request_interval: float = 1.0,
+    ) -> None:
+        """Initialize rate-limited client.
+
+        Args:
+            client: The underlying httpx.AsyncClient
+            min_request_interval: Minimum seconds between requests (default: 1.0)
+        """
+        self._client = client
+        self._min_interval = min_request_interval
+
+    async def get(self, *args: Any, **kwargs: Any) -> httpx.Response:
+        """Make a GET request with rate limiting using global state."""
+        global _global_last_request_time
+
+        async with _global_rate_limiter_lock:
+            # Calculate time since last request (global)
+            elapsed = time.time() - _global_last_request_time
+
+            # If not enough time has passed, wait
+            if elapsed < self._min_interval:
+                wait_time = self._min_interval - elapsed
+                logger.debug(
+                    "Rate limiting: waiting before request",
+                    wait_seconds=round(wait_time, 2),
+                )
+                await asyncio.sleep(wait_time)
+
+            # Make the request
+            response = await self._client.get(*args, **kwargs)
+
+            # Update last request time (global)
+            _global_last_request_time = time.time()
+
+            return response
+
+    async def aclose(self) -> None:
+        """Close the underlying client."""
+        await self._client.aclose()
 
 
 @dataclass(frozen=True)
@@ -94,10 +150,23 @@ class AlphaVantageClient(BaseDataSource):
 
     BASE_URL = "https://www.alphavantage.co/query"
 
-    def __init__(self, api_key: str, timeout: int = 30) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        timeout: int = 30,
+        rate_limit_interval: float = 1.0,
+    ) -> None:
+        """Initialize Alpha Vantage client.
+
+        Args:
+            api_key: Alpha Vantage API key
+            timeout: Request timeout in seconds
+            rate_limit_interval: Minimum seconds between requests (default: 1.0 for free tier)
+        """
         super().__init__(timeout=timeout)
         self.api_key = api_key
-        self._client = httpx.AsyncClient(timeout=timeout)
+        base_client = httpx.AsyncClient(timeout=timeout)
+        self._client = RateLimitedAsyncClient(base_client, rate_limit_interval)
 
     async def fetch(self, **kwargs: Any) -> SourceData:
         """Generic fetch method (required by BaseDataSource)."""
@@ -262,6 +331,7 @@ async def fetch_news_sentiment(
     topics: str | None = None,
     limit: int = 50,
     timeout: int = 30,
+    rate_limit_interval: float = 1.2,
 ) -> SourceData:
     """Fetch news sentiment data.
 
@@ -271,11 +341,14 @@ async def fetch_news_sentiment(
         topics: Comma-separated list of topics
         limit: Number of results
         timeout: Request timeout in seconds
+        rate_limit_interval: Minimum seconds between requests
 
     Returns:
         SourceData containing news articles with sentiment
     """
-    client = AlphaVantageClient(api_key=api_key, timeout=timeout)
+    client = AlphaVantageClient(
+        api_key=api_key, timeout=timeout, rate_limit_interval=rate_limit_interval
+    )
     try:
         return await client.get_news_sentiment(
             tickers=tickers, topics=topics, limit=limit
@@ -287,17 +360,21 @@ async def fetch_news_sentiment(
 async def fetch_top_gainers_losers(
     api_key: str,
     timeout: int = 30,
+    rate_limit_interval: float = 1.2,
 ) -> SourceData:
     """Fetch top gainers and losers.
 
     Args:
         api_key: Alpha Vantage API key
         timeout: Request timeout in seconds
+        rate_limit_interval: Minimum seconds between requests
 
     Returns:
         SourceData containing top gainers, losers, and most active stocks
     """
-    client = AlphaVantageClient(api_key=api_key, timeout=timeout)
+    client = AlphaVantageClient(
+        api_key=api_key, timeout=timeout, rate_limit_interval=rate_limit_interval
+    )
     try:
         return await client.get_top_gainers_losers()
     finally:
@@ -308,6 +385,7 @@ async def fetch_company_overview(
     api_key: str,
     symbol: str,
     timeout: int = 30,
+    rate_limit_interval: float = 1.2,
 ) -> SourceData:
     """Fetch company overview data.
 
@@ -315,11 +393,14 @@ async def fetch_company_overview(
         api_key: Alpha Vantage API key
         symbol: Stock ticker symbol
         timeout: Request timeout in seconds
+        rate_limit_interval: Minimum seconds between requests
 
     Returns:
         SourceData containing company overview and fundamentals
     """
-    client = AlphaVantageClient(api_key=api_key, timeout=timeout)
+    client = AlphaVantageClient(
+        api_key=api_key, timeout=timeout, rate_limit_interval=rate_limit_interval
+    )
     try:
         return await client.get_company_overview(symbol=symbol)
     finally:

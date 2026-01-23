@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import time
 from datetime import datetime
 from typing import Any
@@ -61,20 +60,20 @@ async def fetch_company_data_node(state: AgentState) -> AgentState:
 
     try:
         # Fetch company overview and news sentiment
+        # Rate limiting is handled automatically by the AlphaVantageClient
         overview_data = await fetch_company_overview(
             api_key=config.alpha_vantage.api_key,  # type: ignore[arg-type]
             symbol=ticker,
             timeout=config.alpha_vantage.timeout_seconds,
+            rate_limit_interval=config.alpha_vantage.rate_limit_interval,
         )
-
-        # Add delay to respect Alpha Vantage rate limit (1 request per second for free tier)
-        await asyncio.sleep(1.2)  # 1.2 seconds to be safe
 
         news_data = await fetch_news_sentiment(
             api_key=config.alpha_vantage.api_key,  # type: ignore[arg-type]
             tickers=ticker,
             limit=20,
             timeout=config.alpha_vantage.timeout_seconds,
+            rate_limit_interval=config.alpha_vantage.rate_limit_interval,
         )
 
         # Extract timestamps from the actual data

@@ -82,6 +82,7 @@ class AlphaVantageConfig(BaseModel):
 
     api_key: str | None = None
     timeout_seconds: int = 30
+    rate_limit_interval: float = 1.2  # Seconds between requests (free tier: 1 req/sec)
 
     model_config = {"frozen": True}
 
@@ -192,6 +193,9 @@ class AppConfig(BaseModel):
         alpha_vantage_config = AlphaVantageConfig(
             api_key=os.getenv("ALPHA_VANTAGE_API_KEY"),
             timeout_seconds=int(os.getenv("ALPHA_VANTAGE_TIMEOUT", "30")),
+            rate_limit_interval=float(
+                os.getenv("ALPHA_VANTAGE_RATE_LIMIT_INTERVAL", "1.2")
+            ),
         )
 
         observability_config = ObservabilityConfig(
