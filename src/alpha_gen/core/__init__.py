@@ -31,9 +31,13 @@ from alpha_gen.core.data_sources import (
     NewsArticle,
     SourceData,
     TopGainerLoser,
+    YahooFinanceScraper,
+    YahooNewsArticle,
     fetch_company_overview,
     fetch_news_sentiment,
     fetch_top_gainers_losers,
+    fetch_yahoo_general_news,
+    fetch_yahoo_ticker_news,
 )
 from alpha_gen.core.utils import (
     LogContext,
@@ -68,9 +72,13 @@ __all__ = [  # noqa: RUF022 - intentionally grouped by category
     "NewsArticle",
     "SourceData",
     "TopGainerLoser",
+    "YahooFinanceScraper",
+    "YahooNewsArticle",
     "fetch_company_overview",
     "fetch_news_sentiment",
     "fetch_top_gainers_losers",
+    "fetch_yahoo_general_news",
+    "fetch_yahoo_ticker_news",
     # Utils
     "LogContext",
     "ObservabilityManager",
