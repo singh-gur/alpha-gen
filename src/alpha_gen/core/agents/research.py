@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from langchain_core.messages import HumanMessage
@@ -44,19 +44,27 @@ async def fetch_company_data_node(state: AgentState) -> AgentState:
     ticker = state["context"].get("ticker", "").upper()
 
     if not ticker:
-        return {
-            **state,
+        updated_state: AgentState = {
+            "messages": state["messages"],
+            "current_step": state["current_step"],
+            "context": state["context"],
+            "result": state["result"],
             "error_message": "No ticker provided",
         }
+        return updated_state
 
     logger.info("Fetching company data from Alpha Vantage", ticker=ticker)
 
     config = get_config()
     if not config.alpha_vantage.is_configured:
-        return {
-            **state,
+        updated_state: AgentState = {
+            "messages": state["messages"],
+            "current_step": state["current_step"],
+            "context": state["context"],
+            "result": state["result"],
             "error_message": "Alpha Vantage API key not configured",
         }
+        return updated_state
 
     try:
         # Fetch company overview and news sentiment
@@ -97,6 +105,13 @@ async def fetch_company_data_node(state: AgentState) -> AgentState:
                 except ValueError:
                     pass  # Keep original if parsing fails
 
+        overview_fetched_at = datetime.fromtimestamp(
+            overview_data.timestamp, tz=timezone.utc
+        ).strftime("%Y-%m-%d %H:%M:%S UTC")
+        news_fetched_at = datetime.fromtimestamp(
+            news_data.timestamp, tz=timezone.utc
+        ).strftime("%Y-%m-%d %H:%M:%S UTC")
+
         # Combine all data into context
         combined_context: dict[str, Any] = {
             "ticker": ticker,
@@ -104,19 +119,28 @@ async def fetch_company_data_node(state: AgentState) -> AgentState:
             "news_sentiment": news_data.content,
             "latest_quarter": latest_quarter,
             "latest_news_time": latest_news_time,
+            "overview_fetched_at": overview_fetched_at,
+            "news_fetched_at": news_fetched_at,
         }
 
-        return {
-            **state,
-            "context": combined_context,
+        updated_state: AgentState = {
+            "messages": state["messages"],
             "current_step": "analyzing",
+            "context": combined_context,
+            "result": state["result"],
+            "error_message": state["error_message"],
         }
+        return updated_state
     except Exception as e:
         logger.error("Failed to fetch company data", ticker=ticker, error=str(e))
-        return {
-            **state,
+        updated_state: AgentState = {
+            "messages": state["messages"],
+            "current_step": state["current_step"],
+            "context": state["context"],
+            "result": state["result"],
             "error_message": f"Failed to fetch data: {e!s}",
         }
+        return updated_state
 
 
 async def analyze_data_node(state: AgentState) -> AgentState:
@@ -146,6 +170,8 @@ async def analyze_data_node(state: AgentState) -> AgentState:
                     "type": "company_overview",
                     "sector": overview.get("Sector", ""),
                     "industry": overview.get("Industry", ""),
+                    "latest_quarter": context.get("latest_quarter"),
+                    "fetched_at": context.get("overview_fetched_at"),
                 },
             )
             vector_store.add_documents(
@@ -166,6 +192,8 @@ async def analyze_data_node(state: AgentState) -> AgentState:
                         "title": article.get("title", ""),
                         "source": article.get("source", ""),
                         "sentiment": article.get("overall_sentiment_label", ""),
+                        "time_published": article.get("time_published", ""),
+                        "fetched_at": context.get("news_fetched_at"),
                     },
                 )
                 vector_store.add_documents(
@@ -189,13 +217,23 @@ async def analyze_data_node(state: AgentState) -> AgentState:
             metadata_filter={"type": "company_overview"},
         )
 
-        if similar_docs:
+        filtered_docs = [
+            doc for doc in similar_docs if doc.metadata.get("ticker") != ticker
+        ]
+
+        if filtered_docs:
             rag_context = "\n\nRelevant Historical Context:\n"
-            for i, doc in enumerate(similar_docs, 1):
-                rag_context += f"\n{i}. {doc.metadata.get('ticker', 'Unknown')} ({doc.metadata.get('sector', '')}): {doc.content[:200]}...\n"
+            for i, doc in enumerate(filtered_docs, 1):
+                rag_context += (
+                    f"\n{i}. {doc.metadata.get('ticker', 'Unknown')} "
+                    f"({doc.metadata.get('sector', '')}): "
+                    f"{doc.content[:200]}...\n"
+                )
 
             logger.info(
-                "Retrieved RAG context", ticker=ticker, docs_found=len(similar_docs)
+                "Retrieved RAG context",
+                ticker=ticker,
+                docs_found=len(filtered_docs),
             )
     except Exception as e:
         logger.warning("Failed to retrieve RAG context", error=str(e))
@@ -235,6 +273,12 @@ Article {i}:
     # Build a comprehensive analysis prompt with RAG context
     analysis_prompt = f"""Analyze the following company data for {ticker}:
 
+Data timestamps:
+- Overview fetched at: {context.get("overview_fetched_at", "N/A")}
+- Latest reported quarter: {context.get("latest_quarter", "N/A")}
+- News fetched at: {context.get("news_fetched_at", "N/A")}
+- Latest news time: {context.get("latest_news_time", "N/A")}
+
 Company Overview:
 - Name: {overview.get("Name", "N/A")}
 - Sector: {overview.get("Sector", "N/A")}
@@ -262,7 +306,7 @@ Please provide a comprehensive investment research report including:
 4. News sentiment and market perception (analyze the news articles above)
 5. Investment recommendation with confidence level
 
-Note: Use the historical context above to compare with similar companies and identify patterns.
+Note: Use the historical context above to compare with similar companies and identify patterns. If any historical context conflicts with the current data or news above, prioritize the current Alpha Vantage data.
 """
 
     config = get_config()
@@ -290,20 +334,30 @@ Note: Use the historical context above to compare with similar companies and ide
     try:
         # Invoke LLM directly with messages and Langfuse callback
         response = await llm.ainvoke(messages, config={"callbacks": callbacks})  # type: ignore[arg-type]
-        analysis = response.content
+        analysis_content = response.content
+        if isinstance(analysis_content, list):
+            analysis = "\n".join(str(item) for item in analysis_content)
+        else:
+            analysis = str(analysis_content)
 
-        return {
-            **state,
+        updated_state: AgentState = {
             "messages": state["messages"] + [HumanMessage(content=analysis)],
-            "result": analysis,
             "current_step": "completed",
+            "context": state["context"],
+            "result": analysis,
+            "error_message": state["error_message"],
         }
+        return updated_state
     except Exception as e:
         logger.error("Analysis failed", ticker=ticker, error=str(e))
-        return {
-            **state,
+        updated_state: AgentState = {
+            "messages": state["messages"],
+            "current_step": state["current_step"],
+            "context": state["context"],
+            "result": state["result"],
             "error_message": f"Analysis failed: {e!s}",
         }
+        return updated_state
 
 
 def should_continue(state: AgentState) -> str:
