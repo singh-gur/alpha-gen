@@ -61,6 +61,7 @@ async def fetch_market_news_node(state: AgentState) -> AgentState:
             limit=100,
             timeout=config.alpha_vantage.timeout_seconds,
             rate_limit_interval=config.alpha_vantage.rate_limit_interval,
+            base_url=config.alpha_vantage.base_url,
         )
 
         return {

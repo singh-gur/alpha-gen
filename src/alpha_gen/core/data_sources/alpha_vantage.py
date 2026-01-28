@@ -148,13 +148,14 @@ class CompanyOverview:
 class AlphaVantageClient(BaseDataSource):
     """Client for Alpha Vantage API."""
 
-    BASE_URL = "https://www.alphavantage.co/query"
+    DEFAULT_BASE_URL = "https://www.alphavantage.co/query"
 
     def __init__(
         self,
         api_key: str,
         timeout: int = 30,
         rate_limit_interval: float = 1.0,
+        base_url: str | None = None,
     ) -> None:
         """Initialize Alpha Vantage client.
 
@@ -162,9 +163,11 @@ class AlphaVantageClient(BaseDataSource):
             api_key: Alpha Vantage API key
             timeout: Request timeout in seconds
             rate_limit_interval: Minimum seconds between requests (default: 1.0 for free tier)
+            base_url: Custom base URL for API requests (defaults to Alpha Vantage)
         """
         super().__init__(timeout=timeout)
         self.api_key = api_key
+        self.base_url = base_url or self.DEFAULT_BASE_URL
         base_client = httpx.AsyncClient(timeout=timeout)
         self._client = RateLimitedAsyncClient(base_client, rate_limit_interval)
 
@@ -187,7 +190,7 @@ class AlphaVantageClient(BaseDataSource):
             self._logger.info(
                 "Making Alpha Vantage API request", function=params.get("function")
             )
-            response = await self._client.get(self.BASE_URL, params=params)
+            response = await self._client.get(self.base_url, params=params)
             response.raise_for_status()
 
             data = response.json()
@@ -332,6 +335,7 @@ async def fetch_news_sentiment(
     limit: int = 50,
     timeout: int = 30,
     rate_limit_interval: float = 1.2,
+    base_url: str | None = None,
 ) -> SourceData:
     """Fetch news sentiment data.
 
@@ -342,12 +346,16 @@ async def fetch_news_sentiment(
         limit: Number of results
         timeout: Request timeout in seconds
         rate_limit_interval: Minimum seconds between requests
+        base_url: Custom base URL for API requests
 
     Returns:
         SourceData containing news articles with sentiment
     """
     client = AlphaVantageClient(
-        api_key=api_key, timeout=timeout, rate_limit_interval=rate_limit_interval
+        api_key=api_key,
+        timeout=timeout,
+        rate_limit_interval=rate_limit_interval,
+        base_url=base_url,
     )
     try:
         return await client.get_news_sentiment(
@@ -361,6 +369,7 @@ async def fetch_top_gainers_losers(
     api_key: str,
     timeout: int = 30,
     rate_limit_interval: float = 1.2,
+    base_url: str | None = None,
 ) -> SourceData:
     """Fetch top gainers and losers.
 
@@ -368,12 +377,16 @@ async def fetch_top_gainers_losers(
         api_key: Alpha Vantage API key
         timeout: Request timeout in seconds
         rate_limit_interval: Minimum seconds between requests
+        base_url: Custom base URL for API requests
 
     Returns:
         SourceData containing top gainers, losers, and most active stocks
     """
     client = AlphaVantageClient(
-        api_key=api_key, timeout=timeout, rate_limit_interval=rate_limit_interval
+        api_key=api_key,
+        timeout=timeout,
+        rate_limit_interval=rate_limit_interval,
+        base_url=base_url,
     )
     try:
         return await client.get_top_gainers_losers()
@@ -386,6 +399,7 @@ async def fetch_company_overview(
     symbol: str,
     timeout: int = 30,
     rate_limit_interval: float = 1.2,
+    base_url: str | None = None,
 ) -> SourceData:
     """Fetch company overview data.
 
@@ -394,12 +408,16 @@ async def fetch_company_overview(
         symbol: Stock ticker symbol
         timeout: Request timeout in seconds
         rate_limit_interval: Minimum seconds between requests
+        base_url: Custom base URL for API requests
 
     Returns:
         SourceData containing company overview and fundamentals
     """
     client = AlphaVantageClient(
-        api_key=api_key, timeout=timeout, rate_limit_interval=rate_limit_interval
+        api_key=api_key,
+        timeout=timeout,
+        rate_limit_interval=rate_limit_interval,
+        base_url=base_url,
     )
     try:
         return await client.get_company_overview(symbol=symbol)

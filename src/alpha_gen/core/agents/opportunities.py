@@ -58,6 +58,7 @@ async def fetch_losers_node(state: AgentState) -> AgentState:
         client = AlphaVantageClient(
             api_key=config.alpha_vantage.api_key,  # type: ignore[arg-type]
             timeout=config.alpha_vantage.timeout_seconds,
+            base_url=config.alpha_vantage.base_url,
         )
 
         try:
@@ -116,6 +117,8 @@ async def fetch_detailed_data_node(state: AgentState) -> AgentState:
                 api_key=config.alpha_vantage.api_key,  # type: ignore[arg-type]
                 symbol=ticker,
                 timeout=config.alpha_vantage.timeout_seconds,
+                rate_limit_interval=config.alpha_vantage.rate_limit_interval,
+                base_url=config.alpha_vantage.base_url,
             )
             detailed_data[ticker] = {
                 "overview": overview_data.content,

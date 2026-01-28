@@ -66,6 +66,7 @@ async def fetch_company_data_node(state: AgentState) -> AgentState:
             symbol=ticker,
             timeout=config.alpha_vantage.timeout_seconds,
             rate_limit_interval=config.alpha_vantage.rate_limit_interval,
+            base_url=config.alpha_vantage.base_url,
         )
 
         news_data = await fetch_news_sentiment(
@@ -74,6 +75,7 @@ async def fetch_company_data_node(state: AgentState) -> AgentState:
             limit=20,
             timeout=config.alpha_vantage.timeout_seconds,
             rate_limit_interval=config.alpha_vantage.rate_limit_interval,
+            base_url=config.alpha_vantage.base_url,
         )
 
         # Extract timestamps from the actual data
