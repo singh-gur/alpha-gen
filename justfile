@@ -147,6 +147,12 @@ dev:
 research ticker:
     uv run python -m alpha_gen.cli.main research {{ ticker }}
 
+# Gather financial data for tickers
+[group('app')]
+gather tickers:
+    uv run python -m alpha_gen.cli.main gather {{ tickers }}
+
+
 # Find investment opportunities
 [group('app')]
 opportunities limit="25":

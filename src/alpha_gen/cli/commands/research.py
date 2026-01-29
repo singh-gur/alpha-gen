@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
 import typer
 from rich import print as rprint
@@ -14,10 +14,21 @@ from alpha_gen.core.agents import research_company
 
 @async_command
 async def research_command(
-    ticker: str = typer.Argument(
-        ...,
-        help="Stock ticker symbol (e.g., AAPL, MSFT, TSLA)",
-    ),
+    ticker: Annotated[
+        str,
+        typer.Argument(
+            ...,
+            help="Stock ticker symbol (e.g., AAPL, MSFT, TSLA)",
+        ),
+    ],
+    skip_gather: Annotated[
+        bool,
+        typer.Option(
+            "--skip-gather",
+            "-g",
+            help="Use pre-gathered data from vector store instead of fetching from API",
+        ),
+    ] = False,
     output: OutputOption = "text",
     save: SaveOption = False,
 ) -> dict[str, Any]:
@@ -27,13 +38,22 @@ async def research_command(
     Performs deep-dive analysis including fundamentals, market trends, and AI-generated insights.
     Uses real-time data from Alpha Vantage API for accurate market information.
 
-    Example: alpha-gen research AAPL --save
+    Use --skip-gather to use pre-gathered data for faster analysis (run 'gather' first).
+
+    Examples:
+        alpha-gen research AAPL              # Research with live data
+        alpha-gen research AAPL --skip-gather # Use pre-gathered data
+        alpha-gen research AAPL --save       # Save report to file
     """
     ticker = ticker.upper()
-    rprint(f"[bold]Researching {ticker}...[/bold]")
+
+    if skip_gather:
+        rprint(f"[bold]Researching {ticker} using pre-gathered data...[/bold]")
+    else:
+        rprint(f"[bold]Researching {ticker}...[/bold]")
 
     # Run research
-    result = await research_company(ticker)
+    result = await research_company(ticker, skip_gather=skip_gather)
 
     # Handle output if successful
     if result.get("status") == "success":

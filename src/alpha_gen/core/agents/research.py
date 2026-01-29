@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from langchain_core.messages import HumanMessage
@@ -40,8 +40,9 @@ When analyzing news sentiment, reference specific articles and their sentiment s
 
 
 async def fetch_company_data_node(state: AgentState) -> AgentState:
-    """Fetch company data from Alpha Vantage."""
+    """Fetch company data from Alpha Vantage or vector store."""
     ticker = state["context"].get("ticker", "").upper()
+    skip_gather = state["context"].get("skip_gather", False)
 
     if not ticker:
         updated_state: AgentState = {
@@ -52,6 +53,11 @@ async def fetch_company_data_node(state: AgentState) -> AgentState:
             "error_message": "No ticker provided",
         }
         return updated_state
+
+    # If skip_gather is True, retrieve data from vector store
+    if skip_gather:
+        logger.info("Using pre-gathered data from vector store", ticker=ticker)
+        return await _retrieve_from_vector_store(state, ticker)
 
     logger.info("Fetching company data from Alpha Vantage", ticker=ticker)
 
@@ -106,11 +112,11 @@ async def fetch_company_data_node(state: AgentState) -> AgentState:
                     pass  # Keep original if parsing fails
 
         overview_fetched_at = datetime.fromtimestamp(
-            overview_data.timestamp, tz=timezone.utc
+            overview_data.timestamp, tz=UTC
         ).strftime("%Y-%m-%d %H:%M:%S UTC")
-        news_fetched_at = datetime.fromtimestamp(
-            news_data.timestamp, tz=timezone.utc
-        ).strftime("%Y-%m-%d %H:%M:%S UTC")
+        news_fetched_at = datetime.fromtimestamp(news_data.timestamp, tz=UTC).strftime(
+            "%Y-%m-%d %H:%M:%S UTC"
+        )
 
         # Combine all data into context
         combined_context: dict[str, Any] = {
@@ -141,6 +147,45 @@ async def fetch_company_data_node(state: AgentState) -> AgentState:
             "error_message": f"Failed to fetch data: {e!s}",
         }
         return updated_state
+
+
+async def _retrieve_from_vector_store(state: AgentState, ticker: str) -> AgentState:
+    """Retrieve pre-gathered data from vector store using retrieval module.
+
+    Args:
+        state: Current agent state
+        ticker: Stock ticker symbol
+
+    Returns:
+        Updated state with retrieved data or error
+    """
+    from alpha_gen.core.agents.retrieval import retrieve_gathered_data
+
+    data = retrieve_gathered_data(ticker)
+
+    if not data:
+        logger.warning("No pre-gathered data found", ticker=ticker)
+        updated_state: AgentState = {
+            "messages": state["messages"],
+            "current_step": state["current_step"],
+            "context": state["context"],
+            "result": state["result"],
+            "error_message": (
+                f"No pre-gathered data found for {ticker}. "
+                f"Run 'alpha-gen gather {ticker}' first."
+            ),
+        }
+        return updated_state
+
+    # Data retrieved successfully
+    updated_state: AgentState = {
+        "messages": state["messages"],
+        "current_step": "analyzing",
+        "context": data,
+        "result": state["result"],
+        "error_message": None,
+    }
+    return updated_state
 
 
 async def analyze_data_node(state: AgentState) -> AgentState:
@@ -405,7 +450,7 @@ class ResearchAgent(BaseAgent):
         """Run the research agent.
 
         Args:
-            input_data: Dictionary with 'ticker' key
+            input_data: Dictionary with 'ticker' and optional 'skip_gather' keys
 
         Returns:
             Research analysis results
@@ -413,7 +458,10 @@ class ResearchAgent(BaseAgent):
         initial_state: AgentState = {
             "messages": [],
             "current_step": "initializing",
-            "context": {"ticker": input_data.get("ticker", "")},
+            "context": {
+                "ticker": input_data.get("ticker", ""),
+                "skip_gather": input_data.get("skip_gather", False),
+            },
             "result": None,
             "error_message": None,
         }
@@ -462,14 +510,15 @@ class ResearchAgent(BaseAgent):
             }
 
 
-async def research_company(ticker: str) -> dict[str, Any]:
+async def research_company(ticker: str, skip_gather: bool = False) -> dict[str, Any]:
     """Convenience function to research a company.
 
     Args:
         ticker: Stock ticker symbol
+        skip_gather: If True, use pre-gathered data from vector store instead of fetching from API
 
     Returns:
         Research analysis results
     """
     agent = ResearchAgent()
-    return await agent.run({"ticker": ticker})
+    return await agent.run({"ticker": ticker, "skip_gather": skip_gather})

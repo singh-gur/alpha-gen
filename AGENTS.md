@@ -278,3 +278,39 @@ just ci  # Run check + test
 - **Environment variables**: Use `.env` file for local development, see `.env.example`
 - **Project requires**: Python 3.13+ and uv
 - **Test paths**: Tests are in `tests/` directory, pattern: `test_*.py` or `*_test.py`
+
+### Gather Command
+
+The `gather` command pre-fetches and stores financial data in the vector database for faster research.
+
+```bash
+# Gather data for a single ticker
+just gather AAPL
+alpha-gen gather AAPL
+
+# Gather data for multiple tickers
+alpha-gen gather AAPL,MSFT,TSLA
+
+# Use gathered data in research (faster, no API calls)
+alpha-gen gather AAPL
+alpha-gen research AAPL --skip-gather
+
+# Save gather report
+alpha-gen gather AAPL --save
+```
+
+**Data Freshness:**
+- Gathered data is valid for 24 hours by default
+- Stale data is automatically detected and rejected
+- Re-run `gather` to refresh data for a ticker
+
+**Benefits:**
+- Faster research (no API calls)
+- Avoid rate limits when analyzing multiple times
+- Batch data collection for multiple tickers
+
+**Storage:**
+- Data is stored in vector database (Chroma by default)
+- Location: `./data/vector_store/`
+- Includes: company overview, financial metrics, news articles
+- Uses deterministic IDs for automatic updates (no duplicates)
