@@ -12,8 +12,9 @@ from datetime import UTC, datetime
 from typing import Any
 
 from alpha_gen.core.agents.base import AgentConfig, AgentState, BaseAgent
-from alpha_gen.core.config.settings import get_config
+from alpha_gen.core.config.settings import TechnicalIndicatorConfig, get_config
 from alpha_gen.core.data_sources.alpha_vantage import (
+    AlphaVantageClient,
     fetch_company_overview,
     fetch_news_sentiment,
 )
@@ -160,6 +161,130 @@ def _extract_financial_metrics(overview: dict[str, Any]) -> dict[str, Any]:
     return metrics
 
 
+async def _fetch_technical_indicator(
+    client: AlphaVantageClient,
+    indicator_name: str,
+    symbol: str,
+    config: TechnicalIndicatorConfig,
+) -> dict[str, Any] | None:
+    """Fetch a single technical indicator from Alpha Vantage.
+
+    Args:
+        client: Alpha Vantage client
+        indicator_name: Name of the indicator (SMA, EMA, RSI, etc.)
+        symbol: Stock ticker symbol
+        config: Configuration for the indicator
+
+    Returns:
+        Technical indicator data or None if fetch fails
+    """
+    try:
+        # Map indicator names to client methods
+        method_map = {
+            "SMA": client.get_sma,
+            "EMA": client.get_ema,
+            "RSI": client.get_rsi,
+            "MACD": client.get_macd,
+            "STOCH": client.get_stoch,
+            "BBANDS": client.get_bbands,
+            "ATR": client.get_atr,
+            "ADX": client.get_adx,
+            "AROON": client.get_aroon,
+            "CCI": client.get_cci,
+            "OBV": client.get_obv,
+            "AD": client.get_ad,
+        }
+
+        method = method_map.get(indicator_name)
+        if not method:
+            logger.warning(
+                "Unknown technical indicator", indicator=indicator_name, symbol=symbol
+            )
+            return None
+
+        # Call the appropriate method with config parameters
+        # Some indicators don't use all parameters
+        if indicator_name in ["MACD"]:
+            data = await method(
+                symbol=symbol,
+                interval=config.interval,
+                series_type=config.series_type,
+            )
+        elif indicator_name in ["STOCH", "OBV", "AD"]:
+            data = await method(
+                symbol=symbol,
+                interval=config.interval,
+            )
+        elif indicator_name in ["ATR", "ADX", "AROON", "CCI"]:
+            data = await method(
+                symbol=symbol,
+                interval=config.interval,
+                time_period=config.time_period,
+            )
+        else:  # SMA, EMA, RSI, BBANDS
+            data = await method(
+                symbol=symbol,
+                interval=config.interval,
+                time_period=config.time_period,
+                series_type=config.series_type,
+            )
+
+        return data.content
+    except Exception as e:
+        logger.error(
+            "Failed to fetch technical indicator",
+            indicator=indicator_name,
+            symbol=symbol,
+            error=str(e),
+        )
+        return None
+
+
+def _format_technical_indicator_data(
+    indicator_name: str, indicator_data: dict[str, Any], limit: int = 30
+) -> str:
+    """Format technical indicator data for storage.
+
+    Args:
+        indicator_name: Name of the indicator
+        indicator_data: Raw indicator data from Alpha Vantage
+        limit: Maximum number of data points to include
+
+    Returns:
+        Formatted string representation of the indicator data
+    """
+    # Find the technical analysis key in the response
+    tech_key = None
+    for key in indicator_data:
+        if "Technical Analysis" in key:
+            tech_key = key
+            break
+
+    if not tech_key:
+        return f"{indicator_name}: No data available"
+
+    data_points = indicator_data.get(tech_key, {})
+    if not data_points:
+        return f"{indicator_name}: No data available"
+
+    # Get the most recent data points
+    sorted_dates = sorted(data_points.keys(), reverse=True)[:limit]
+
+    # Format the data
+    lines = [f"{indicator_name} (most recent {len(sorted_dates)} periods):"]
+    for date in sorted_dates:
+        values = data_points[date]
+        if isinstance(values, dict):
+            # Multiple values (e.g., MACD has MACD, signal, histogram)
+            value_str = ", ".join([f"{k}: {v}" for k, v in values.items()])
+            lines.append(f"  {date}: {value_str}")
+        else:
+            # Single value
+            lines.append(f"  {date}: {values}")
+
+    return "\n".join(lines)
+
+
 async def gather_data_node(state: AgentState) -> AgentState:
     """Fetch company data from Alpha Vantage and store in vector DB.
 
@@ -229,6 +354,34 @@ async def gather_data_node(state: AgentState) -> AgentState:
             rate_limit_interval=config.alpha_vantage.rate_limit_interval,
             base_url=config.alpha_vantage.base_url,
         )
+
+        # Fetch technical indicators if configured
+        technical_indicators_data = {}
+        enabled_indicators = (
+            config.alpha_vantage.technical_indicators.enabled_indicators
+        )
+        if enabled_indicators:
+            logger.info(
+                "Fetching technical indicators",
+                ticker=ticker,
+                indicators=list(enabled_indicators.keys()),
+            )
+            # Create a client for technical indicators
+            client = AlphaVantageClient(
+                api_key=api_key,
+                timeout=config.alpha_vantage.timeout_seconds,
+                rate_limit_interval=config.alpha_vantage.rate_limit_interval,
+                base_url=config.alpha_vantage.base_url,
+            )
+            try:
+                for indicator_name, indicator_config in enabled_indicators.items():
+                    indicator_data = await _fetch_technical_indicator(
+                        client, indicator_name, ticker, indicator_config
+                    )
+                    if indicator_data:
+                        technical_indicators_data[indicator_name] = indicator_data
+            finally:
+                await client.close()
 
         # Extract metadata
         overview = overview_data.content
@@ -357,12 +510,42 @@ async def gather_data_node(state: AgentState) -> AgentState:
             docs_added += len(chunks)
             news_articles_added += 1
 
+        # 4. Store technical indicators
+        indicators_stored = 0
+        indicators_fetched_at = _format_timestamp(time.time())
+        if technical_indicators_data:
+            for indicator_name, indicator_data in technical_indicators_data.items():
+                # Format the indicator data as text
+                formatted_text = _format_technical_indicator_data(
+                    indicator_name, indicator_data, limit=30
+                )
+
+                # Store as a single document
+                indicator_id = _generate_doc_id(
+                    ticker, f"indicator_{indicator_name}", 0
+                )
+                vector_store.add_documents(
+                    texts=[formatted_text],
+                    metadatas=[
+                        {
+                            **base_metadata,
+                            "type": "technical_indicator",
+                            "indicator_name": indicator_name,
+                            "fetched_at": indicators_fetched_at,
+                        }
+                    ],
+                    ids=[indicator_id],
+                )
+                docs_added += 1
+                indicators_stored += 1
+
         logger.info(
             "Stored company data in vector store",
             ticker=ticker,
             docs_added=docs_added,
             news_articles=news_articles_added,
             metrics_count=len(metrics),
+            indicators_count=indicators_stored,
         )
 
         # Return success state
@@ -374,10 +557,14 @@ async def gather_data_node(state: AgentState) -> AgentState:
                 "docs_added": docs_added,
                 "news_articles_stored": news_articles_added,
                 "metrics_stored": len(metrics),
+                "indicators_stored": indicators_stored,
                 "latest_quarter": latest_quarter,
                 "latest_news_time": latest_news_time,
                 "overview_fetched_at": overview_fetched_at,
                 "news_fetched_at": news_fetched_at,
+                "indicators_fetched_at": indicators_fetched_at
+                if technical_indicators_data
+                else None,
             },
             "result": None,
             "error_message": None,
@@ -460,10 +647,12 @@ class GatherAgent(BaseAgent):
                 "docs_added": context.get("docs_added", 0),
                 "news_articles_stored": context.get("news_articles_stored", 0),
                 "metrics_stored": context.get("metrics_stored", 0),
+                "indicators_stored": context.get("indicators_stored", 0),
                 "latest_quarter": context.get("latest_quarter"),
                 "latest_news_time": context.get("latest_news_time"),
                 "overview_fetched_at": context.get("overview_fetched_at"),
                 "news_fetched_at": context.get("news_fetched_at"),
+                "indicators_fetched_at": context.get("indicators_fetched_at"),
                 "duration_ms": duration_ms,
             }
 

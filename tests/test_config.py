@@ -8,9 +8,12 @@ from pathlib import Path
 import pytest
 
 from alpha_gen.core.config.settings import (
+    AlphaVantageConfig,
     AppConfig,
     LLMConfig,
     OutputConfig,
+    TechnicalIndicatorConfig,
+    TechnicalIndicatorsConfig,
     get_config,
 )
 
@@ -143,3 +146,125 @@ class TestOutputConfig:
         config.ensure_output_dir()
         assert output_dir.exists()
         assert output_dir.is_dir()
+
+
+class TestTechnicalIndicatorConfig:
+    """Tests for TechnicalIndicatorConfig."""
+
+    def test_default_values(self) -> None:
+        """Test default technical indicator configuration."""
+        config = TechnicalIndicatorConfig()
+
+        assert config.enabled is True
+        assert config.time_period == 14
+        assert config.series_type == "close"
+        assert config.interval == "daily"
+
+    def test_custom_values(self) -> None:
+        """Test custom technical indicator configuration."""
+        config = TechnicalIndicatorConfig(
+            enabled=False,
+            time_period=20,
+            series_type="open",
+            interval="weekly",
+        )
+
+        assert config.enabled is False
+        assert config.time_period == 20
+        assert config.series_type == "open"
+        assert config.interval == "weekly"
+
+    def test_time_period_validation(self) -> None:
+        """Test time_period validation."""
+        with pytest.raises(ValueError):
+            TechnicalIndicatorConfig(time_period=0)
+
+        with pytest.raises(ValueError):
+            TechnicalIndicatorConfig(time_period=-1)
+
+
+class TestTechnicalIndicatorsConfig:
+    """Tests for TechnicalIndicatorsConfig."""
+
+    def test_default_values(self) -> None:
+        """Test default technical indicators configuration."""
+        config = TechnicalIndicatorsConfig()
+
+        assert config.sma is None
+        assert config.ema is None
+        assert config.rsi is None
+        assert config.macd is None
+        assert config.stoch is None
+        assert config.bbands is None
+        assert config.atr is None
+        assert config.adx is None
+        assert config.aroon is None
+        assert config.cci is None
+        assert config.obv is None
+        assert config.ad is None
+
+    def test_enabled_indicators(self) -> None:
+        """Test enabled_indicators property."""
+        config = TechnicalIndicatorsConfig(
+            sma=TechnicalIndicatorConfig(enabled=True, time_period=20),
+            ema=TechnicalIndicatorConfig(enabled=True, time_period=12),
+            rsi=TechnicalIndicatorConfig(enabled=False, time_period=14),
+        )
+
+        enabled = config.enabled_indicators
+        assert len(enabled) == 2
+        assert "SMA" in enabled
+        assert "EMA" in enabled
+        assert "RSI" not in enabled
+        assert enabled["SMA"].time_period == 20
+        assert enabled["EMA"].time_period == 12
+
+    def test_no_enabled_indicators(self) -> None:
+        """Test enabled_indicators when all are disabled or None."""
+        config = TechnicalIndicatorsConfig()
+        assert len(config.enabled_indicators) == 0
+
+        config = TechnicalIndicatorsConfig(
+            sma=TechnicalIndicatorConfig(enabled=False),
+            ema=TechnicalIndicatorConfig(enabled=False),
+        )
+        assert len(config.enabled_indicators) == 0
+
+
+class TestAlphaVantageConfig:
+    """Tests for AlphaVantageConfig."""
+
+    def test_default_values(self) -> None:
+        """Test default Alpha Vantage configuration."""
+        config = AlphaVantageConfig()
+
+        assert config.api_key is None
+        assert config.timeout_seconds == 30
+        assert config.rate_limit_interval == 1.2
+        assert config.base_url is None
+        assert isinstance(config.technical_indicators, TechnicalIndicatorsConfig)
+
+    def test_is_configured(self) -> None:
+        """Test is_configured property."""
+        config = AlphaVantageConfig()
+        assert config.is_configured is False
+
+        config = AlphaVantageConfig(api_key="test-key")
+        assert config.is_configured is True
+
+    def test_with_technical_indicators(self) -> None:
+        """Test Alpha Vantage config with technical indicators."""
+        indicators_config = TechnicalIndicatorsConfig(
+            sma=TechnicalIndicatorConfig(enabled=True, time_period=20),
+            rsi=TechnicalIndicatorConfig(enabled=True, time_period=14),
+        )
+
+        config = AlphaVantageConfig(
+            api_key="test-key",
+            technical_indicators=indicators_config,
+        )
+
+        assert config.is_configured is True
+        assert len(config.technical_indicators.enabled_indicators) == 2
+        assert "SMA" in config.technical_indicators.enabled_indicators
+        assert "RSI" in config.technical_indicators.enabled_indicators

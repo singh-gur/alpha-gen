@@ -320,6 +320,299 @@ class AlphaVantageClient(BaseDataSource):
         params = {"function": "MARKET_STATUS"}
         return await self._make_request(params)
 
+    # Technical Indicators
+
+    async def get_sma(
+        self,
+        symbol: str,
+        interval: str = "daily",
+        time_period: int = 14,
+        series_type: str = "close",
+    ) -> SourceData:
+        """Get Simple Moving Average (SMA) indicator.
+
+        Args:
+            symbol: Stock ticker symbol (e.g., "AAPL")
+            interval: Time interval (daily, weekly, monthly, 1min, 5min, 15min, 30min, 60min)
+            time_period: Number of data points used to calculate each SMA value
+            series_type: Price type (close, open, high, low)
+
+        Returns:
+            SourceData containing SMA values
+        """
+        params = {
+            "function": "SMA",
+            "symbol": symbol,
+            "interval": interval,
+            "time_period": str(time_period),
+            "series_type": series_type,
+        }
+        return await self._make_request(params)
+
+    async def get_ema(
+        self,
+        symbol: str,
+        interval: str = "daily",
+        time_period: int = 14,
+        series_type: str = "close",
+    ) -> SourceData:
+        """Get Exponential Moving Average (EMA) indicator.
+
+        Args:
+            symbol: Stock ticker symbol (e.g., "AAPL")
+            interval: Time interval (daily, weekly, monthly, 1min, 5min, 15min, 30min, 60min)
+            time_period: Number of data points used to calculate each EMA value
+            series_type: Price type (close, open, high, low)
+
+        Returns:
+            SourceData containing EMA values
+        """
+        params = {
+            "function": "EMA",
+            "symbol": symbol,
+            "interval": interval,
+            "time_period": str(time_period),
+            "series_type": series_type,
+        }
+        return await self._make_request(params)
+
+    async def get_rsi(
+        self,
+        symbol: str,
+        interval: str = "daily",
+        time_period: int = 14,
+        series_type: str = "close",
+    ) -> SourceData:
+        """Get Relative Strength Index (RSI) indicator.
+
+        Args:
+            symbol: Stock ticker symbol (e.g., "AAPL")
+            interval: Time interval (daily, weekly, monthly, 1min, 5min, 15min, 30min, 60min)
+            time_period: Number of data points used to calculate each RSI value
+            series_type: Price type (close, open, high, low)
+
+        Returns:
+            SourceData containing RSI values
+        """
+        params = {
+            "function": "RSI",
+            "symbol": symbol,
+            "interval": interval,
+            "time_period": str(time_period),
+            "series_type": series_type,
+        }
+        return await self._make_request(params)
+
+    async def get_macd(
+        self,
+        symbol: str,
+        interval: str = "daily",
+        series_type: str = "close",
+    ) -> SourceData:
+        """Get Moving Average Convergence Divergence (MACD) indicator.
+
+        Args:
+            symbol: Stock ticker symbol (e.g., "AAPL")
+            interval: Time interval (daily, weekly, monthly, 1min, 5min, 15min, 30min, 60min)
+            series_type: Price type (close, open, high, low)
+
+        Returns:
+            SourceData containing MACD values (MACD, signal, histogram)
+        """
+        params = {
+            "function": "MACD",
+            "symbol": symbol,
+            "interval": interval,
+            "series_type": series_type,
+        }
+        return await self._make_request(params)
+
+    async def get_stoch(
+        self,
+        symbol: str,
+        interval: str = "daily",
+    ) -> SourceData:
+        """Get Stochastic Oscillator (STOCH) indicator.
+
+        Args:
+            symbol: Stock ticker symbol (e.g., "AAPL")
+            interval: Time interval (daily, weekly, monthly, 1min, 5min, 15min, 30min, 60min)
+
+        Returns:
+            SourceData containing STOCH values (SlowK, SlowD)
+        """
+        params = {
+            "function": "STOCH",
+            "symbol": symbol,
+            "interval": interval,
+        }
+        return await self._make_request(params)
+
+    async def get_bbands(
+        self,
+        symbol: str,
+        interval: str = "daily",
+        time_period: int = 14,
+        series_type: str = "close",
+    ) -> SourceData:
+        """Get Bollinger Bands (BBANDS) indicator.
+
+        Args:
+            symbol: Stock ticker symbol (e.g., "AAPL")
+            interval: Time interval (daily, weekly, monthly, 1min, 5min, 15min, 30min, 60min)
+            time_period: Number of data points used to calculate each BBANDS value
+            series_type: Price type (close, open, high, low)
+
+        Returns:
+            SourceData containing BBANDS values (upper, middle, lower bands)
+        """
+        params = {
+            "function": "BBANDS",
+            "symbol": symbol,
+            "interval": interval,
+            "time_period": str(time_period),
+            "series_type": series_type,
+        }
+        return await self._make_request(params)
+
+    async def get_atr(
+        self,
+        symbol: str,
+        interval: str = "daily",
+        time_period: int = 14,
+    ) -> SourceData:
+        """Get Average True Range (ATR) indicator.
+
+        Args:
+            symbol: Stock ticker symbol (e.g., "AAPL")
+            interval: Time interval (daily, weekly, monthly, 1min, 5min, 15min, 30min, 60min)
+            time_period: Number of data points used to calculate each ATR value
+
+        Returns:
+            SourceData containing ATR values
+        """
+        params = {
+            "function": "ATR",
+            "symbol": symbol,
+            "interval": interval,
+            "time_period": str(time_period),
+        }
+        return await self._make_request(params)
+
+    async def get_adx(
+        self,
+        symbol: str,
+        interval: str = "daily",
+        time_period: int = 14,
+    ) -> SourceData:
+        """Get Average Directional Index (ADX) indicator.
+
+        Args:
+            symbol: Stock ticker symbol (e.g., "AAPL")
+            interval: Time interval (daily, weekly, monthly, 1min, 5min, 15min, 30min, 60min)
+            time_period: Number of data points used to calculate each ADX value
+
+        Returns:
+            SourceData containing ADX values
+        """
+        params = {
+            "function": "ADX",
+            "symbol": symbol,
+            "interval": interval,
+            "time_period": str(time_period),
+        }
+        return await self._make_request(params)
+
+    async def get_aroon(
+        self,
+        symbol: str,
+        interval: str = "daily",
+        time_period: int = 14,
+    ) -> SourceData:
+        """Get Aroon indicator.
+
+        Args:
+            symbol: Stock ticker symbol (e.g., "AAPL")
+            interval: Time interval (daily, weekly, monthly, 1min, 5min, 15min, 30min, 60min)
+            time_period: Number of data points used to calculate each Aroon value
+
+        Returns:
+            SourceData containing Aroon values (Aroon Up, Aroon Down)
+        """
+        params = {
+            "function": "AROON",
+            "symbol": symbol,
+            "interval": interval,
+            "time_period": str(time_period),
+        }
+        return await self._make_request(params)
+
+    async def get_cci(
+        self,
+        symbol: str,
+        interval: str = "daily",
+        time_period: int = 14,
+    ) -> SourceData:
+        """Get Commodity Channel Index (CCI) indicator.
+
+        Args:
+            symbol: Stock ticker symbol (e.g., "AAPL")
+            interval: Time interval (daily, weekly, monthly, 1min, 5min, 15min, 30min, 60min)
+            time_period: Number of data points used to calculate each CCI value
+
+        Returns:
+            SourceData containing CCI values
+        """
+        params = {
+            "function": "CCI",
+            "symbol": symbol,
+            "interval": interval,
+            "time_period": str(time_period),
+        }
+        return await self._make_request(params)
+
+    async def get_obv(
+        self,
+        symbol: str,
+        interval: str = "daily",
+    ) -> SourceData:
+        """Get On Balance Volume (OBV) indicator.
+
+        Args:
+            symbol: Stock ticker symbol (e.g., "AAPL")
+            interval: Time interval (daily, weekly, monthly, 1min, 5min, 15min, 30min, 60min)
+
+        Returns:
+            SourceData containing OBV values
+        """
+        params = {
+            "function": "OBV",
+            "symbol": symbol,
+            "interval": interval,
+        }
+        return await self._make_request(params)
+
+    async def get_ad(
+        self,
+        symbol: str,
+        interval: str = "daily",
+    ) -> SourceData:
+        """Get Accumulation/Distribution (AD) indicator.
+
+        Args:
+            symbol: Stock ticker symbol (e.g., "AAPL")
+            interval: Time interval (daily, weekly, monthly, 1min, 5min, 15min, 30min, 60min)
+
+        Returns:
+            SourceData containing AD values
+        """
+        params = {
+            "function": "AD",
+            "symbol": symbol,
+            "interval": interval,
+        }
+        return await self._make_request(params)
+
     async def close(self) -> None:
         """Clean up HTTP client resources."""
         await self._client.aclose()

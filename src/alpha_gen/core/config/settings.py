@@ -77,6 +77,57 @@ class VectorStoreConfig(BaseModel):
             self.persist_directory.mkdir(parents=True, exist_ok=True)
 
 
+class TechnicalIndicatorConfig(BaseModel):
+    """Configuration for a single technical indicator."""
+
+    enabled: bool = True
+    time_period: int = Field(default=14, gt=0)
+    series_type: Literal["close", "open", "high", "low"] = "close"  # type: ignore[assignment]
+    interval: Literal["daily", "weekly", "monthly"] = "daily"  # type: ignore[assignment]
+
+    model_config = {"frozen": True}
+
+
+class TechnicalIndicatorsConfig(BaseModel):
+    """Configuration for technical indicators to fetch from Alpha Vantage."""
+
+    # Moving Averages
+    sma: TechnicalIndicatorConfig | None = None  # Simple Moving Average
+    ema: TechnicalIndicatorConfig | None = None  # Exponential Moving Average
+
+    # Momentum Indicators
+    rsi: TechnicalIndicatorConfig | None = None  # Relative Strength Index
+    macd: TechnicalIndicatorConfig | None = (
+        None  # Moving Average Convergence Divergence
+    )
+    stoch: TechnicalIndicatorConfig | None = None  # Stochastic Oscillator
+
+    # Volatility Indicators
+    bbands: TechnicalIndicatorConfig | None = None  # Bollinger Bands
+    atr: TechnicalIndicatorConfig | None = None  # Average True Range
+
+    # Trend Indicators
+    adx: TechnicalIndicatorConfig | None = None  # Average Directional Index
+    aroon: TechnicalIndicatorConfig | None = None  # Aroon Indicator
+    cci: TechnicalIndicatorConfig | None = None  # Commodity Channel Index
+
+    # Volume Indicators
+    obv: TechnicalIndicatorConfig | None = None  # On Balance Volume
+    ad: TechnicalIndicatorConfig | None = None  # Accumulation/Distribution
+
+    model_config = {"frozen": True}
+
+    @property
+    def enabled_indicators(self) -> dict[str, TechnicalIndicatorConfig]:
+        """Get all enabled indicators."""
+        indicators = {}
+        for field_name in self.__class__.model_fields:
+            indicator = getattr(self, field_name)
+            if indicator is not None and indicator.enabled:
+                indicators[field_name.upper()] = indicator
+        return indicators
+
+
 class AlphaVantageConfig(BaseModel):
     """Configuration for Alpha Vantage API."""
 
@@ -84,6 +135,9 @@ class AlphaVantageConfig(BaseModel):
     timeout_seconds: int = 30
     rate_limit_interval: float = 1.2  # Seconds between requests (free tier: 1 req/sec)
     base_url: str | None = None  # Custom base URL (defaults to Alpha Vantage)
+    technical_indicators: TechnicalIndicatorsConfig = Field(
+        default_factory=TechnicalIndicatorsConfig
+    )
 
     model_config = {"frozen": True}
 
@@ -191,6 +245,52 @@ class AppConfig(BaseModel):
             or "all-MiniLM-L6-v2",
         )
 
+        # Load technical indicators config from environment
+        def _load_indicator_config(
+            indicator_name: str,
+        ) -> TechnicalIndicatorConfig | None:
+            """Load indicator config from environment variables."""
+            enabled_key = f"ALPHA_VANTAGE_INDICATOR_{indicator_name.upper()}_ENABLED"
+            enabled = os.getenv(enabled_key, "false").lower() == "true"
+
+            if not enabled:
+                return None
+
+            time_period = int(
+                os.getenv(
+                    f"ALPHA_VANTAGE_INDICATOR_{indicator_name.upper()}_TIME_PERIOD",
+                    "14",
+                )
+            )
+            series_type = os.getenv(
+                f"ALPHA_VANTAGE_INDICATOR_{indicator_name.upper()}_SERIES_TYPE", "close"
+            )
+            interval = os.getenv(
+                f"ALPHA_VANTAGE_INDICATOR_{indicator_name.upper()}_INTERVAL", "daily"
+            )
+
+            return TechnicalIndicatorConfig(
+                enabled=True,
+                time_period=time_period,
+                series_type=series_type,  # type: ignore[arg-type]
+                interval=interval,  # type: ignore[arg-type]
+            )
+
+        technical_indicators_config = TechnicalIndicatorsConfig(
+            sma=_load_indicator_config("sma"),
+            ema=_load_indicator_config("ema"),
+            rsi=_load_indicator_config("rsi"),
+            macd=_load_indicator_config("macd"),
+            stoch=_load_indicator_config("stoch"),
+            bbands=_load_indicator_config("bbands"),
+            atr=_load_indicator_config("atr"),
+            adx=_load_indicator_config("adx"),
+            aroon=_load_indicator_config("aroon"),
+            cci=_load_indicator_config("cci"),
+            obv=_load_indicator_config("obv"),
+            ad=_load_indicator_config("ad"),
+        )
+
         alpha_vantage_config = AlphaVantageConfig(
             api_key=os.getenv("ALPHA_VANTAGE_API_KEY"),
             timeout_seconds=int(os.getenv("ALPHA_VANTAGE_TIMEOUT", "30")),
@@ -198,6 +298,7 @@ class AppConfig(BaseModel):
                 os.getenv("ALPHA_VANTAGE_RATE_LIMIT_INTERVAL", "1.2")
             ),
             base_url=os.getenv("ALPHA_VANTAGE_BASE_URL") or None,
+            technical_indicators=technical_indicators_config,
         )
 
         observability_config = ObservabilityConfig(
