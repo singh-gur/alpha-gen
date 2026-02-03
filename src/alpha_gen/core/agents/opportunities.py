@@ -11,10 +11,8 @@ from langgraph.graph import StateGraph
 
 from alpha_gen.core.agents.base import AgentConfig, AgentState, BaseAgent
 from alpha_gen.core.config.settings import get_config
-from alpha_gen.core.data_sources.alpha_vantage import (
-    AlphaVantageClient,
-    fetch_company_overview,
-)
+from alpha_gen.core.data_sources.alpha_vantage import fetch_company_overview
+from alpha_gen.core.data_sources.yahoo_finance import fetch_yahoo_losers
 from alpha_gen.core.rag import DocumentProcessor, get_vector_store_manager
 from alpha_gen.core.utils.logging import get_langfuse_handler, get_logger
 
@@ -44,48 +42,44 @@ For each opportunity identified, provide:
 
 
 async def fetch_losers_node(state: AgentState) -> AgentState:
-    """Fetch top gainers and losers from Alpha Vantage."""
-    logger.info("Fetching top gainers and losers from Alpha Vantage")
-
-    config = get_config()
-    if not config.alpha_vantage.is_configured:
-        return {
-            **state,
-            "error_message": "Alpha Vantage API key not configured",
-        }
+    """Fetch top losers from Yahoo Finance."""
+    logger.info("Fetching top losers from Yahoo Finance")
 
     try:
-        client = AlphaVantageClient(
-            api_key=config.alpha_vantage.api_key,  # type: ignore[arg-type]
-            timeout=config.alpha_vantage.timeout_seconds,
-            base_url=config.alpha_vantage.base_url,
-        )
+        limit = state["context"].get("limit", 25)
 
-        try:
-            data = await client.get_top_gainers_losers()
+        # Fetch losers from Yahoo Finance
+        data = await fetch_yahoo_losers(limit=limit, timeout=60)
 
-            # Extract losers from the response
-            losers = data.content.get("top_losers", [])
-            limit = state["context"].get("limit", 25)
+        # Transform Yahoo Finance data to match expected format
+        losers = []
+        for stock in data.content.get("stocks", []):
+            losers.append(
+                {
+                    "ticker": stock["symbol"],
+                    "name": stock["name"],
+                    "price": str(stock["price"]),
+                    "change": f"{stock['percent_change']}%",
+                    "change_amount": str(stock["change"]),
+                    "change_percentage": f"{stock['percent_change']}%",
+                    "volume": str(stock["volume"]),
+                }
+            )
 
-            return {
-                **state,
-                "context": {
-                    **state["context"],
-                    "losers_data": losers[:limit],
-                    "gainers_data": data.content.get("top_gainers", [])[:limit],
-                    "most_active": data.content.get("most_actively_traded", [])[:limit],
-                },
-                "current_step": "analyzing",
-            }
-        finally:
-            await client.close()
-
-    except Exception as e:
-        logger.error("Failed to fetch market movers", error=str(e))
         return {
             **state,
-            "error_message": f"Failed to fetch market movers: {e!s}",
+            "context": {
+                **state["context"],
+                "losers_data": losers,
+            },
+            "current_step": "analyzing",
+        }
+
+    except Exception as e:
+        logger.error("Failed to fetch losers from Yahoo Finance", error=str(e))
+        return {
+            **state,
+            "error_message": f"Failed to fetch losers: {e!s}",
         }
 
 

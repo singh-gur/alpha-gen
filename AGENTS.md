@@ -57,8 +57,8 @@ just dev
 just research AAPL
 
 # Find opportunities
-just opportunities
-just opportunities --limit 50
+just opps
+just opps --limit 50
 
 # Analyze news
 just news

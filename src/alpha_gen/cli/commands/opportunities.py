@@ -12,7 +12,7 @@ from alpha_gen.cli.decorators import async_command
 from alpha_gen.core.agents import find_opportunities
 
 opportunities_app = typer.Typer(
-    name="opportunities",
+    name="opps",
     help="💎 Find investment opportunities from underperforming stocks",
     invoke_without_command=True,
     no_args_is_help=False,
@@ -41,8 +41,8 @@ async def opportunities_command(
     AI evaluates fundamentals, market conditions, and sentiment to find hidden gems.
 
     Examples:
-      alpha-gen opportunities --save              # Analyze top 25 losers and save
-      alpha-gen opportunities --limit 50 --save   # Analyze top 50 losers and save
+      alpha-gen opps --save              # Analyze top 25 losers and save
+      alpha-gen opps --limit 50 --save   # Analyze top 50 losers and save
     """
     rprint(
         f"[bold]Finding investment opportunities from losers list (limit: {limit})...[/bold]"
@@ -53,7 +53,7 @@ async def opportunities_command(
 
     # Handle output if successful
     if result.get("status") == "success":
-        losers_data = result.get("losers_data", {}).get("losers", [])
+        losers_data = result.get("losers_data", [])
         analysis = result.get("analysis", "No analysis available")
 
         from alpha_gen.cli.helpers import output_result

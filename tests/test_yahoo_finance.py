@@ -10,7 +10,10 @@ from alpha_gen.core.data_sources.base import SourceData
 from alpha_gen.core.data_sources.yahoo_finance import (
     YahooFinanceScraper,
     YahooNewsArticle,
+    YahooStockData,
+    fetch_yahoo_gainers,
     fetch_yahoo_general_news,
+    fetch_yahoo_losers,
     fetch_yahoo_ticker_news,
 )
 
@@ -56,6 +59,69 @@ class TestYahooNewsArticle:
 
         with pytest.raises(AttributeError):
             article.title = "Modified"  # type: ignore[misc]
+
+
+class TestYahooStockData:
+    """Tests for YahooStockData dataclass."""
+
+    def test_create_stock_data(self) -> None:
+        """Test creating a YahooStockData instance with all fields."""
+        stock = YahooStockData(
+            symbol="AAPL",
+            name="Apple Inc.",
+            price=150.25,
+            change=-5.50,
+            percent_change=-3.53,
+            volume=50000000,
+            avg_volume_3m=45000000,
+            market_cap="2.5T",
+            pe_ratio="25.5",
+            ytd_change="+15.2%",
+        )
+
+        assert stock.symbol == "AAPL"
+        assert stock.name == "Apple Inc."
+        assert stock.price == 150.25
+        assert stock.change == -5.50
+        assert stock.percent_change == -3.53
+        assert stock.volume == 50000000
+        assert stock.avg_volume_3m == 45000000
+        assert stock.market_cap == "2.5T"
+        assert stock.pe_ratio == "25.5"
+        assert stock.ytd_change == "+15.2%"
+
+    def test_create_stock_data_defaults(self) -> None:
+        """Test creating a YahooStockData with default optional fields."""
+        stock = YahooStockData(
+            symbol="TSLA",
+            name="Tesla, Inc.",
+            price=200.0,
+            change=10.0,
+            percent_change=5.26,
+            volume=100000000,
+            avg_volume_3m=90000000,
+            market_cap="600B",
+        )
+
+        assert stock.symbol == "TSLA"
+        assert stock.pe_ratio is None
+        assert stock.ytd_change is None
+
+    def test_stock_data_is_frozen(self) -> None:
+        """Test that YahooStockData is immutable."""
+        stock = YahooStockData(
+            symbol="MSFT",
+            name="Microsoft Corporation",
+            price=300.0,
+            change=5.0,
+            percent_change=1.69,
+            volume=25000000,
+            avg_volume_3m=24000000,
+            market_cap="2.2T",
+        )
+
+        with pytest.raises(AttributeError):
+            stock.price = 305.0  # type: ignore[misc]
 
 
 class TestYahooFinanceScraper:
@@ -198,6 +264,91 @@ class TestYahooFinanceScraper:
         assert result["thumbnail_url"] is None
         assert result["related_tickers"] == []
 
+    def test_parse_raw_stock(self) -> None:
+        """Test parsing raw stock dict into YahooStockData."""
+        scraper = YahooFinanceScraper()
+
+        raw = {
+            "symbol": "  AAPL  ",
+            "name": "  Apple Inc.  ",
+            "price": 150.25,
+            "change": -5.50,
+            "percent_change": -3.53,
+            "volume": 50000000,
+            "avg_volume_3m": 45000000,
+            "market_cap": "  2.5T  ",
+            "pe_ratio": "25.5",
+            "ytd_change": "+15.2%",
+        }
+
+        stock = scraper._parse_raw_stock(raw)
+
+        assert stock.symbol == "AAPL"
+        assert stock.name == "Apple Inc."
+        assert stock.price == 150.25
+        assert stock.change == -5.50
+        assert stock.percent_change == -3.53
+        assert stock.volume == 50000000
+        assert stock.avg_volume_3m == 45000000
+        assert stock.market_cap == "2.5T"
+        assert stock.pe_ratio == "25.5"
+        assert stock.ytd_change == "+15.2%"
+
+    def test_parse_raw_stock_missing_fields(self) -> None:
+        """Test parsing raw stock with missing optional fields."""
+        scraper = YahooFinanceScraper()
+
+        raw: dict[str, str | float | int | None] = {
+            "symbol": "TSLA",
+            "name": "Tesla, Inc.",
+            "price": 200.0,
+            "change": 10.0,
+            "percent_change": 5.26,
+            "volume": 100000000,
+            "avg_volume_3m": 90000000,
+            "market_cap": "600B",
+            "pe_ratio": None,
+            "ytd_change": None,
+        }
+
+        stock = scraper._parse_raw_stock(raw)
+
+        assert stock.symbol == "TSLA"
+        assert stock.pe_ratio is None
+        assert stock.ytd_change is None
+
+    def test_stock_to_dict(self) -> None:
+        """Test converting YahooStockData to dict."""
+        scraper = YahooFinanceScraper()
+
+        stock = YahooStockData(
+            symbol="MSFT",
+            name="Microsoft Corporation",
+            price=300.0,
+            change=5.0,
+            percent_change=1.69,
+            volume=25000000,
+            avg_volume_3m=24000000,
+            market_cap="2.2T",
+            pe_ratio="28.5",
+            ytd_change="+20.5%",
+        )
+
+        result = scraper._stock_to_dict(stock)
+
+        assert result == {
+            "symbol": "MSFT",
+            "name": "Microsoft Corporation",
+            "price": 300.0,
+            "change": 5.0,
+            "percent_change": 1.69,
+            "volume": 25000000,
+            "avg_volume_3m": 24000000,
+            "market_cap": "2.2T",
+            "pe_ratio": "28.5",
+            "ytd_change": "+20.5%",
+        }
+
     @pytest.mark.asyncio
     async def test_close_no_browser(self) -> None:
         """Test closing scraper when no browser was launched."""
@@ -241,6 +392,36 @@ class TestYahooFinanceScraper:
         await scraper.fetch(limit=5)
 
         scraper.get_general_news.assert_awaited_once_with(limit=5)
+
+    @pytest.mark.asyncio
+    async def test_fetch_dispatches_to_losers(self) -> None:
+        """Test that fetch() with mode='losers' dispatches to get_losers."""
+        scraper = YahooFinanceScraper()
+        scraper.get_losers = AsyncMock()  # type: ignore[method-assign]
+        scraper.get_losers.return_value = MagicMock()
+
+        await scraper.fetch(mode="losers", limit=10)
+
+        scraper.get_losers.assert_awaited_once_with(limit=10)
+
+    @pytest.mark.asyncio
+    async def test_fetch_dispatches_to_gainers(self) -> None:
+        """Test that fetch() with mode='gainers' dispatches to get_gainers."""
+        scraper = YahooFinanceScraper()
+        scraper.get_gainers = AsyncMock()  # type: ignore[method-assign]
+        scraper.get_gainers.return_value = MagicMock()
+
+        await scraper.fetch(mode="gainers", limit=10)
+
+        scraper.get_gainers.assert_awaited_once_with(limit=10)
+
+    @pytest.mark.asyncio
+    async def test_fetch_invalid_mode_raises_error(self) -> None:
+        """Test that fetch() with invalid mode raises ValueError."""
+        scraper = YahooFinanceScraper()
+
+        with pytest.raises(ValueError, match="Invalid mode"):
+            await scraper.fetch(mode="invalid")
 
     @pytest.mark.asyncio
     async def test_get_ticker_news_returns_source_data(self) -> None:
@@ -314,6 +495,75 @@ class TestYahooFinanceScraper:
 
         with pytest.raises(ValueError, match="Invalid ticker symbol"):
             await scraper.get_ticker_news(ticker="AAPL!")
+
+    @pytest.mark.asyncio
+    async def test_get_losers_returns_source_data(self) -> None:
+        """Test get_losers returns properly structured SourceData."""
+        scraper = YahooFinanceScraper()
+
+        mock_stocks = [
+            YahooStockData(
+                symbol="AAPL",
+                name="Apple Inc.",
+                price=150.0,
+                change=-10.0,
+                percent_change=-6.25,
+                volume=50000000,
+                avg_volume_3m=45000000,
+                market_cap="2.5T",
+            ),
+        ]
+        scraper._scrape_market_movers_page = AsyncMock(return_value=mock_stocks)  # type: ignore[method-assign]
+
+        result = await scraper.get_losers(limit=10)
+
+        assert result.source == "yahoo_finance"
+        assert result.url is not None
+        assert "/markets/stocks/losers" in result.url
+        assert result.content["type"] == "losers"
+        assert result.content["count"] == 1
+        assert len(result.content["stocks"]) == 1
+        assert result.content["stocks"][0]["symbol"] == "AAPL"
+        assert result.timestamp > 0
+
+    @pytest.mark.asyncio
+    async def test_get_gainers_returns_source_data(self) -> None:
+        """Test get_gainers returns properly structured SourceData."""
+        scraper = YahooFinanceScraper()
+
+        mock_stocks = [
+            YahooStockData(
+                symbol="TSLA",
+                name="Tesla, Inc.",
+                price=200.0,
+                change=15.0,
+                percent_change=8.11,
+                volume=100000000,
+                avg_volume_3m=90000000,
+                market_cap="600B",
+            ),
+            YahooStockData(
+                symbol="NVDA",
+                name="NVIDIA Corporation",
+                price=500.0,
+                change=25.0,
+                percent_change=5.26,
+                volume=75000000,
+                avg_volume_3m=70000000,
+                market_cap="1.2T",
+            ),
+        ]
+        scraper._scrape_market_movers_page = AsyncMock(return_value=mock_stocks)  # type: ignore[method-assign]
+
+        result = await scraper.get_gainers(limit=20)
+
+        assert result.source == "yahoo_finance"
+        assert result.url is not None
+        assert "/markets/stocks/gainers" in result.url
+        assert result.content["type"] == "gainers"
+        assert result.content["count"] == 2
+        assert len(result.content["stocks"]) == 2
+        assert result.timestamp > 0
 
 
 class TestConvenienceFunctions:
@@ -439,6 +689,126 @@ class TestConvenienceFunctions:
 
             mock_close.assert_awaited_once()
 
+    @pytest.mark.asyncio
+    async def test_fetch_yahoo_losers(self) -> None:
+        """Test fetch_yahoo_losers convenience function."""
+        with (
+            patch.object(
+                YahooFinanceScraper,
+                "get_losers",
+                new_callable=AsyncMock,
+            ) as mock_method,
+            patch.object(
+                YahooFinanceScraper,
+                "close",
+                new_callable=AsyncMock,
+            ) as mock_close,
+        ):
+            from alpha_gen.core.data_sources.base import SourceData
+
+            mock_method.return_value = SourceData(
+                source="yahoo_finance",
+                url="https://finance.yahoo.com/markets/stocks/losers/",
+                content={
+                    "stocks": [{"symbol": "AAPL", "name": "Apple Inc."}],
+                    "count": 1,
+                    "type": "losers",
+                },
+                timestamp=1234567890.0,
+            )
+
+            result = await fetch_yahoo_losers(
+                limit=10,
+                timeout=60,
+                headless=True,
+            )
+
+            assert result.source == "yahoo_finance"
+            assert result.content["type"] == "losers"
+            mock_method.assert_awaited_once_with(limit=10)
+            mock_close.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_fetch_yahoo_gainers(self) -> None:
+        """Test fetch_yahoo_gainers convenience function."""
+        with (
+            patch.object(
+                YahooFinanceScraper,
+                "get_gainers",
+                new_callable=AsyncMock,
+            ) as mock_method,
+            patch.object(
+                YahooFinanceScraper,
+                "close",
+                new_callable=AsyncMock,
+            ) as mock_close,
+        ):
+            from alpha_gen.core.data_sources.base import SourceData
+
+            mock_method.return_value = SourceData(
+                source="yahoo_finance",
+                url="https://finance.yahoo.com/markets/stocks/gainers/",
+                content={
+                    "stocks": [{"symbol": "TSLA", "name": "Tesla, Inc."}],
+                    "count": 1,
+                    "type": "gainers",
+                },
+                timestamp=1234567890.0,
+            )
+
+            result = await fetch_yahoo_gainers(
+                limit=10,
+                timeout=60,
+                headless=True,
+            )
+
+            assert result.source == "yahoo_finance"
+            assert result.content["type"] == "gainers"
+            mock_method.assert_awaited_once_with(limit=10)
+            mock_close.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_fetch_yahoo_losers_closes_on_error(self) -> None:
+        """Test that convenience function closes scraper even on error."""
+        with (
+            patch.object(
+                YahooFinanceScraper,
+                "get_losers",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("Scrape failed"),
+            ),
+            patch.object(
+                YahooFinanceScraper,
+                "close",
+                new_callable=AsyncMock,
+            ) as mock_close,
+        ):
+            with pytest.raises(RuntimeError, match="Scrape failed"):
+                await fetch_yahoo_losers()
+
+            mock_close.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_fetch_yahoo_gainers_closes_on_error(self) -> None:
+        """Test that convenience function closes scraper even on error."""
+        with (
+            patch.object(
+                YahooFinanceScraper,
+                "get_gainers",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("Scrape failed"),
+            ),
+            patch.object(
+                YahooFinanceScraper,
+                "close",
+                new_callable=AsyncMock,
+            ) as mock_close,
+        ):
+            with pytest.raises(RuntimeError, match="Scrape failed"):
+                await fetch_yahoo_gainers()
+
+            mock_close.assert_awaited_once()
+
 
 # ---------------------------------------------------------------------------
 # Integration tests - actually scrape Yahoo Finance
@@ -473,6 +843,44 @@ def _assert_valid_article(article: dict[str, object]) -> None:
     assert isinstance(source, str), f"source should be str, got {type(source)}"
 
 
+def _assert_valid_stock(stock: dict[str, object]) -> None:
+    """Shared assertions for a single stock dict."""
+    assert isinstance(stock, dict)
+
+    symbol = stock.get("symbol")
+    assert isinstance(symbol, str), f"symbol should be str, got {type(symbol)}"
+    assert len(symbol) > 0, "stock symbol must not be empty"
+
+    name = stock.get("name")
+    assert isinstance(name, str), f"name should be str, got {type(name)}"
+    assert len(name) > 0, "stock name must not be empty"
+
+    price = stock.get("price")
+    assert isinstance(price, (int, float)), (
+        f"price should be numeric, got {type(price)}"
+    )
+    assert price > 0, f"price should be positive, got {price}"
+
+    change = stock.get("change")
+    assert isinstance(change, (int, float)), (
+        f"change should be numeric, got {type(change)}"
+    )
+
+    percent_change = stock.get("percent_change")
+    assert isinstance(percent_change, (int, float)), (
+        f"percent_change should be numeric, got {type(percent_change)}"
+    )
+
+    volume = stock.get("volume")
+    assert isinstance(volume, int), f"volume should be int, got {type(volume)}"
+    assert volume >= 0, f"volume should be non-negative, got {volume}"
+
+    market_cap = stock.get("market_cap")
+    assert isinstance(market_cap, str), (
+        f"market_cap should be str, got {type(market_cap)}"
+    )
+
+
 @pytest.mark.integration
 class TestYahooFinanceScraperIntegration:
     """Integration tests that perform real scraping against Yahoo Finance.
@@ -489,6 +897,7 @@ class TestYahooFinanceScraperIntegration:
             result = await scraper.get_ticker_news(ticker="INTC", limit=5)
 
             _assert_valid_source_data(result, "yahoo_finance")
+            assert result.url is not None
             assert "/quote/INTC/news" in result.url
 
             assert result.content["ticker"] == "INTC"
@@ -525,6 +934,7 @@ class TestYahooFinanceScraperIntegration:
             result = await scraper.get_general_news(limit=5)
 
             _assert_valid_source_data(result, "yahoo_finance")
+            assert result.url is not None
             assert result.url.endswith("/news/")
 
             assert "ticker" not in result.content
@@ -619,3 +1029,69 @@ class TestYahooFinanceScraperIntegration:
 
         for article in result.content["articles"]:
             _assert_valid_article(article)
+
+    @pytest.mark.asyncio
+    async def test_scrape_losers(self) -> None:
+        """Scrape top losers and verify stocks are returned."""
+        scraper = YahooFinanceScraper(timeout=60, headless=True)
+        try:
+            result = await scraper.get_losers(limit=5)
+
+            _assert_valid_source_data(result, "yahoo_finance")
+            assert result.url is not None
+            assert "/markets/stocks/losers" in result.url
+
+            assert result.content["type"] == "losers"
+            assert isinstance(result.content["count"], int)
+            assert result.content["count"] > 0, "Expected at least 1 loser stock"
+            assert result.content["count"] == len(result.content["stocks"])
+
+            for stock in result.content["stocks"]:
+                _assert_valid_stock(stock)
+        finally:
+            await scraper.close()
+
+    @pytest.mark.asyncio
+    async def test_scrape_gainers(self) -> None:
+        """Scrape top gainers and verify stocks are returned."""
+        scraper = YahooFinanceScraper(timeout=60, headless=True)
+        try:
+            result = await scraper.get_gainers(limit=5)
+
+            _assert_valid_source_data(result, "yahoo_finance")
+            assert result.url is not None
+            assert "/markets/stocks/gainers" in result.url
+
+            assert result.content["type"] == "gainers"
+            assert isinstance(result.content["count"], int)
+            assert result.content["count"] > 0, "Expected at least 1 gainer stock"
+            assert result.content["count"] == len(result.content["stocks"])
+
+            for stock in result.content["stocks"]:
+                _assert_valid_stock(stock)
+        finally:
+            await scraper.close()
+
+    @pytest.mark.asyncio
+    async def test_convenience_fetch_yahoo_losers(self) -> None:
+        """Verify the fetch_yahoo_losers convenience function end-to-end."""
+        result = await fetch_yahoo_losers(limit=3, timeout=60)
+
+        _assert_valid_source_data(result, "yahoo_finance")
+        assert result.content["type"] == "losers"
+        assert result.content["count"] > 0
+
+        for stock in result.content["stocks"]:
+            _assert_valid_stock(stock)
+
+    @pytest.mark.asyncio
+    async def test_convenience_fetch_yahoo_gainers(self) -> None:
+        """Verify the fetch_yahoo_gainers convenience function end-to-end."""
+        result = await fetch_yahoo_gainers(limit=3, timeout=60)
+
+        _assert_valid_source_data(result, "yahoo_finance")
+        assert result.content["type"] == "gainers"
+        assert result.content["count"] > 0
+
+        for stock in result.content["stocks"]:
+            _assert_valid_stock(stock)

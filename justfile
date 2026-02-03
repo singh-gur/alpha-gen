@@ -155,8 +155,8 @@ gather tickers:
 
 # Find investment opportunities
 [group('app')]
-opportunities limit="25":
-    uv run python -m alpha_gen.cli.main opportunities --limit {{ limit }}
+opps limit="25":
+    uv run python -m alpha_gen.cli.main opps --limit {{ limit }}
 
 # Analyze recent news
 [group('app')]
